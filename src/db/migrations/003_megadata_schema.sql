@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS megadata_token (
+  id SERIAL PRIMARY KEY,
+  collection_id INTEGER NOT NULL,
+  data JSON NOT NULL,
+  is_published BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (collection_id) REFERENCES megadata_collection(id)
+);
