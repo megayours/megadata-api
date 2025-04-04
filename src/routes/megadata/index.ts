@@ -1,4 +1,4 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
+import { OpenAPIHono, z } from '@hono/zod-openapi';
 import type { StatusCode } from 'hono/utils/http-status';
 import { MegadataService } from '../../services/megadata.service';
 import { AccountService } from '../../services/account.service';
@@ -21,7 +21,13 @@ const app = new OpenAPIHono();
 
 // Route Handlers
 app.openapi({ ...getCollectionsRoute, method: 'get', path: '/collections'}, async (c) => {
-  const result = await MegadataService.getAllCollections();
+  const account_id = c.req.query('account_id');
+  if (!account_id) {
+    c.status(400 as StatusCode);
+    return c.json({ error: "Account ID is required" }) as any;
+  }
+  
+  const result = await MegadataService.getAllCollections(account_id);
   
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);

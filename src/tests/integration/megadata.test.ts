@@ -59,6 +59,36 @@ describe("Megadata Collection Routes", () => {
     }
   });
 
+  test("GET /megadata/collections - should return collections for a given account_id", async () => {
+    // Create two collections for the test account
+    const collection1 = generateRandomCollection(testAccount.id);
+    const collection2 = generateRandomCollection(testAccount.id);
+    await app.request('/megadata/collections', { method: 'POST', body: JSON.stringify(collection1), headers: { 'Content-Type': 'application/json' } });
+    const createResponse2 = await app.request('/megadata/collections', { method: 'POST', body: JSON.stringify(collection2), headers: { 'Content-Type': 'application/json' } });
+    const createdCollection2 = await createResponse2.json() as MegadataCollectionResponse; // Keep track of one ID for later check
+
+    // Fetch collections for the account
+    const response = await app.request(`/megadata/collections?account_id=${testAccount.id}`);
+    expect(response.status).toBe(200);
+    const data = await response.json() as MegadataCollectionResponse[];
+    
+    expect(Array.isArray(data)).toBe(true);
+    // Check if at least one of the created collections is present
+    const foundCollection = data.find(col => col.id === createdCollection2.id);
+    expect(foundCollection).toBeDefined();
+    if (foundCollection) {
+      expect(foundCollection.name).toBe(collection2.name);
+      expect(foundCollection.account_id).toBe(testAccount.id);
+    }
+    // Verify all returned collections belong to the correct account
+    data.forEach(col => expect(col.account_id).toBe(testAccount.id));
+  });
+
+  test("GET /megadata/collections - should return 400 if account_id is missing", async () => {
+    const response = await app.request('/megadata/collections');
+    expect(response.status).toBe(400);
+  });
+
   test("GET /megadata/collections/:id - should return collection by id", async () => {
     // First create a collection
     const collection = generateRandomCollection(testAccount.id);

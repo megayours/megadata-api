@@ -31,6 +31,11 @@ export const UpdateCollectionSchema = z.object({
 });
 
 export const getCollectionsRoute = {
+  request: {
+    query: z.object({
+      account_id: z.string()
+    })
+  },
   tags: ['megadata'],
   responses: {
     200: {

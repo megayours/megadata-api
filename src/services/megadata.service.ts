@@ -9,7 +9,7 @@ import { eq, and, inArray, sql, getTableColumns } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 export class MegadataService {
-  static async getAllCollections(): Promise<ResultAsync<MegadataCollection[], Error>> {
+  static async getAllCollections(accountId: string): Promise<ResultAsync<MegadataCollection[], Error>> {
     return ResultAsync.fromPromise<MegadataCollection[], Error>(
       db.select({
         ...getTableColumns(megadataCollection),
@@ -17,6 +17,7 @@ export class MegadataService {
       })
         .from(megadataCollection)
         .leftJoin(collectionModule, eq(megadataCollection.id, collectionModule.collection_id))
+        .where(eq(megadataCollection.account_id, accountId))
         .groupBy(megadataCollection.id)
         .then(results => results.map(r => ({ ...r, modules: r.modules ?? [] }))),
       (error) => handleDatabaseError(error)
