@@ -1,32 +1,64 @@
-import { t } from "elysia";
+import { z } from 'zod';
 
-export const MegadataTokenRequest = t.Object({
-  data: t.Record(t.String(), t.Any()),
+export const CreateMegadataCollectionSchema = z.object({
+  name: z.string(),
+  account_id: z.string(),
+  modules: z.array(z.string()),
 });
 
-export const MegadataCollectionResponse = t.Object({
-  id: t.Number(),
-  name: t.String(),
-  account_id: t.String(),
-  is_published: t.Boolean(),
-  created_at: t.Date(),
-  updated_at: t.Date(),
+export type CreateMegadataCollectionRequest = z.infer<typeof CreateMegadataCollectionSchema>;
+
+export const UpdateMegadataCollectionSchema = z.object({
+  name: z.string(),
+  modules: z.array(z.string()),
 });
 
-export const CreateMegadataCollectionRequest = t.Object({
-  name: t.String(),
-  account_id: t.String(),
+export type UpdateMegadataCollectionRequest = z.infer<typeof UpdateMegadataCollectionSchema>;
+
+export const MegadataCollectionResponseSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  account_id: z.string(),
+  is_published: z.boolean(),
+  created_at: z.number(),
+  updated_at: z.number(),
+  modules: z.array(z.string()),
 });
 
-export const UpdateMegadataCollectionRequest = t.Object({
-  name: t.Optional(t.String()),
+export type MegadataCollectionResponse = z.infer<typeof MegadataCollectionResponseSchema>;
+
+export const CreateMegadataTokenSchema = z.object({
+  id: z.string(),
+  data: z.record(z.any()),
 });
 
-export const MegadataTokenResponse = t.Object({
-  id: t.Number(),
-  collection_id: t.Number(),
-  data: t.Record(t.String(), t.Any()),
-  is_published: t.Boolean(),
-  created_at: t.Date(),
-  updated_at: t.Date(),
+export type CreateMegadataTokenRequest = z.infer<typeof CreateMegadataTokenSchema>;
+
+export const UpdateMegadataTokenSchema = z.object({
+  data: z.record(z.any()),
 });
+
+export type UpdateMegadataTokenRequest = z.infer<typeof UpdateMegadataTokenSchema>;
+
+export const MegadataTokenResponseSchema = z.object({
+  id: z.string(),
+  collection_id: z.number(),
+  data: z.record(z.any()),
+  is_published: z.boolean(),
+  created_at: z.number(),
+  updated_at: z.number(),
+});
+
+export type MegadataTokenResponse = z.infer<typeof MegadataTokenResponseSchema>;
+
+export const ErrorResponseSchema = z.object({
+  error: z.string()
+});
+
+export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+
+export const SuccessResponseSchema = z.object({
+  success: z.boolean()
+});
+
+export type SuccessResponse = z.infer<typeof SuccessResponseSchema>;

@@ -1,240 +1,263 @@
-import { Elysia, t } from "elysia";
-import { sql } from "bun";
-import { handleDatabaseError } from "../../db/helpers";
-import { MegadataTokenRequest, MegadataTokenResponse, MegadataCollectionResponse, CreateMegadataCollectionRequest } from "./types";
+import { OpenAPIHono } from '@hono/zod-openapi';
+import type { StatusCode } from 'hono/utils/http-status';
+import { MegadataService } from '../../services/megadata.service';
+import { AccountService } from '../../services/account.service';
+import { validateTokenData, getCollectionModules } from '../../services/module';
+import {
+  getCollectionsRoute,
+  createCollectionRoute,
+  getCollectionRoute,
+  updateCollectionRoute,
+  deleteCollectionRoute,
+  publishCollectionRoute,
+  getCollectionTokensRoute,
+  createTokenRoute,
+  getTokenRoute,
+  updateTokenRoute,
+  deleteTokenRoute
+} from './openapi';
 
-export const megadataRoutes = new Elysia()
-  .get("/megadata/collections", async ({ set }) => {
-    try {
-      const collections = await sql`SELECT * FROM megadata_collection`;
-      return collections;
-    } catch (error) {
-      set.status = 500;
-      throw handleDatabaseError(error);
-    }
-  }, {
-    response: t.Array(MegadataCollectionResponse)
-  })
-  .post("/megadata/collections", async ({ body, set }) => {
-    const { name, account_id } = body;
+const app = new OpenAPIHono();
 
-    if (name === undefined) {
-      set.status = 400;
-      return { error: "No name provided" };
-    }
+// Route Handlers
+app.openapi({ ...getCollectionsRoute, method: 'get', path: '/collections'}, async (c) => {
+  const result = await MegadataService.getAllCollections();
+  
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
+  }
+  
+  return c.json(result.value);
+});
 
-    if (account_id === undefined) {
-      set.status = 400;
-      return { error: "No account_id provided" };
-    }
+app.openapi({ ...createCollectionRoute, method: 'post', path: '/collections'}, async (c) => {
+  const body = await c.req.json();
+  const { name, account_id, modules } = body;
 
-    console.log(`Creating collection ${name} for account ${account_id}`);
+  const accountResult = await AccountService.ensureAccount(account_id);
+  if (accountResult.isErr()) {
+    c.status(accountResult.error.status as StatusCode);
+    return c.json({ error: accountResult.error.context }) as any;
+  }
 
-    try {
-      const [account] = await sql`SELECT * FROM account WHERE id = ${account_id}`;
-      if (!account) {
-        set.status = 404;
-        return { error: "Account not found" };
-      }
-      const [collection] = await sql`
-        INSERT INTO megadata_collection (name, account_id)
-        VALUES (${name}, ${account_id})
-        RETURNING id, name, account_id, is_published, created_at, updated_at
-      `;
-      console.log(`Collection created: ${collection}`);
-      return collection;
-    } catch (error) {
-      console.error(`Error creating collection: ${error}`);
-      throw handleDatabaseError(error);
-    }
-  }, {
-    body: CreateMegadataCollectionRequest,
-    response: MegadataCollectionResponse
-  })
-  .put("/megadata/collections/:id/publish", async ({ params: { id } }) => {
-    try {
-      await sql`UPDATE megadata_collection SET is_published = true WHERE id = ${id}`;
-      return { success: true };
-    } catch (error) {
-      throw handleDatabaseError(error);
-    }
-  }, {
-    response: t.Object({ success: t.Boolean() })
-  })
-  .get("/megadata/collections/:id", async ({ params: { id }, set }) => {
-    try {
-      const [collection] = await sql`SELECT * FROM megadata_collection WHERE id = ${id}`;
-      if (!collection) {
-        set.status = 404;
-        return { error: "Collection not found" };
-      }
-      return collection;
-    } catch (error) {
-      throw handleDatabaseError(error);
-    }
-  }, {
-    response: MegadataCollectionResponse
-  })
-  .get("/megadata/collections/:id/tokens", async ({ params: { id }, set }) => {
-    try {
-      const tokens = await sql`SELECT * FROM megadata_token WHERE collection_id = ${id}`;
-      if (!tokens) {
-        set.status = 404;
-        return { error: "Tokens not found" };
-      }
-      return tokens;
-    } catch (error) {
-      throw handleDatabaseError(error);
-    }
-  }, {
-    response: t.Array(MegadataTokenResponse)
-  })
-  .put("/megadata/collections/:id/tokens/:token_id/publish", async ({ params: { id, token_id }, set }) => {
-    try {
-      const [token] = await sql`
-        UPDATE megadata_token 
-        SET is_published = true 
-        WHERE id = ${token_id} AND collection_id = ${id}
-        RETURNING *`;
-      if (!token) {
-        set.status = 404;
-        return { error: "Token not found" };
-      }
-      return token;
-    } catch (error) {
-      throw handleDatabaseError(error);
-    }
-  }, {
-    response: t.Object({ success: t.Boolean() })
-  })
-  .post("/megadata/collections/:id/tokens", async ({ params: { id }, body, set }) => {
-    const { data } = body;
-    console.log(`Creating token for collection ${id} with data ${data}`);
-    try {
-      const [collection] = await sql`SELECT * FROM megadata_collection WHERE id = ${id}`;
-      if (!collection) {
-        set.status = 404;
-        return { error: "Collection not found" };
-      }
+  const collectionResult = await MegadataService.createCollection({ name, account_id, modules });
+  if (collectionResult.isErr()) {
+    c.status(collectionResult.error.status as StatusCode);
+    return c.json({ error: collectionResult.error.context }) as any;
+  }
+  
+  c.status(201 as StatusCode);
+  return c.json(collectionResult.value);
+});
 
-      const [token] = await sql`
-        INSERT INTO megadata_token (collection_id, data)
-        VALUES (${id}, ${data})
-        RETURNING id, collection_id, data, is_published, created_at, updated_at
-      `;
-      set.status = 201;
-      return token;
-    } catch (error) {
-      console.error(`Error creating token: ${error}`);
-      throw handleDatabaseError(error);
-    }
-  },
-    {
-      body: MegadataTokenRequest,
-      response: MegadataTokenResponse
-    })
-  .get("/megadata/collections/:id/tokens/:token_id", async ({ params: { id, token_id }, set }) => {
-    try {
-      const [token] = await sql`SELECT * FROM megadata_token WHERE id = ${token_id} AND collection_id = ${id}`;
-      if (!token) {
-        set.status = 404;
-        return { error: "Token not found" };
-      }
-      return token;
-    } catch (error) {
-      throw handleDatabaseError(error);
-    }
-  }, {
-    response: MegadataTokenResponse
-  })
-  .put("/megadata/collections/:id", async ({ params: { id }, body, set }) => {
-    const { name } = body;
+app.openapi({ ...getCollectionRoute, method: 'get', path: '/collections/{collection_id}'}, async (c) => {
+  const id = Number(c.req.param('collection_id'));
+  const result = await MegadataService.getCollectionById(id);
+  
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
+  }
+  
+  const collection = result.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+  
+  return c.json(collection);
+});
 
-    if (name === undefined) {
-      set.status = 400;
-      return { error: "No name provided" };
-    }
+app.openapi({ ...updateCollectionRoute, method: 'put', path: '/collections/{collection_id}'}, async (c) => {
+  const id = Number(c.req.param('collection_id'));
+  console.log(`Updating collection ${id}`);
+  const { name, modules } = await c.req.json();
 
-    try {
-      const [collection] = await sql`
-        UPDATE megadata_collection
-        SET  
-          name = ${name},
-          updated_at = ${new Date().toISOString()}
-        WHERE id = ${id}
-        RETURNING *
-      `;
-      if (!collection) {
-        set.status = 404;
-        return { error: "Collection not found" };
-      }
-      return collection;
-    } catch (error) {
-      throw handleDatabaseError(error);
-    }
-  }, {
-    body: CreateMegadataCollectionRequest,
-    response: MegadataCollectionResponse
-  })
-  .put("/megadata/collections/:id/tokens/:token_id", async ({ params: { id, token_id }, body, set }) => {
-    const { data } = body;
-    console.log(`Updating token ${token_id} for collection ${id} with data ${data}`);
-    if (data === undefined) {
-      set.status = 400;
-      return { error: "No data provided" };
-    }
+  const result = await MegadataService.updateCollection(id, name, modules);
+  console.log("result", result);
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
+  }
+  
+  const collection = result.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+  
+  return c.json(collection);
+});
 
-    try {
-      const [token] = await sql`
-        UPDATE megadata_token
-        SET  
-          data = ${data},
-          updated_at = ${new Date().toISOString()}
-        WHERE id = ${token_id} AND collection_id = ${id}
-        RETURNING *
-      `;
-      if (!token) {
-        set.status = 404;
-        return { error: "Token not found" };
-      }
-      return token;
-    } catch (error) {
-      console.error(`Error updating token: ${error}`);
-      throw handleDatabaseError(error);
-    }
-  }, {
-    body: MegadataTokenRequest,
-    response: MegadataTokenResponse
-  })
-  .delete("/megadata/collections/:id", async ({ params: { id }, set }) => {
-    try {
-      const [collection] = await sql`DELETE FROM megadata_collection WHERE id = ${id} RETURNING *`;
-      if (!collection) {
-        set.status = 404;
-        return { error: "Collection not found" };
-      }
+app.openapi({ ...deleteCollectionRoute, method: 'delete', path: '/collections/{collection_id}'}, async (c) => {
+  const id = Number(c.req.param('collection_id'));
+  console.log(`Deleting collection ${id}`);
+  const result = await MegadataService.deleteCollection(id);
+  console.log(result);
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
+  }
+  
+  const collection = result.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+  
+  return c.json({ success: true });
+});
 
-      return collection;
-    } catch (error) {
-      console.error(`Error deleting collection: ${error}`);
-      throw handleDatabaseError(error);
-    }
-  }, {
-    response: MegadataCollectionResponse
-  })
-  .delete("/megadata/collections/:id/tokens/:token_id", async ({ params: { id, token_id }, set }) => {
-    try {
-      const [token] = await sql`DELETE FROM megadata_token WHERE id = ${token_id} RETURNING *`;
-      if (!token) {
-        set.status = 404;
-        return { error: "Token not found" };
-      }
+app.openapi({ ...publishCollectionRoute, method: 'put', path: '/collections/{collection_id}/publish'}, async (c) => {
+  const id = Number(c.req.param('collection_id'));
+  console.log(`Publishing collection ${id}`);
+  const tokenIds = await c.req.json<string[]>();
 
-      return token;
-    } catch (error) {
-      console.error(`Error deleting token: ${error}`);
-      throw handleDatabaseError(error);
+  const result = await MegadataService.publishCollection(id, tokenIds);
+  
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
+  }
+  
+  return c.json({ success: true });
+});
+
+app.openapi({ ...getCollectionTokensRoute, method: 'get', path: '/collections/{collection_id}/tokens'}, async (c) => {
+  const id = Number(c.req.param('collection_id'));
+  const result = await MegadataService.getCollectionTokens(id);
+  
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
+  }
+  
+  return c.json(result.value);
+});
+
+app.openapi({ ...createTokenRoute, method: 'post', path: '/collections/{collection_id}/tokens'}, async (c) => {
+  const id = Number(c.req.param('collection_id'));
+  console.log(`Creating token for collection ${id}`);
+  const body = await c.req.json();
+
+  const collectionResult = await MegadataService.getCollectionById(id);
+  console.log("collectionResult", collectionResult);
+  if (collectionResult.isErr()) {
+    c.status(collectionResult.error.status as StatusCode);
+    return c.json({ error: collectionResult.error.context }) as any;
+  }
+  
+  const collection = collectionResult.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+
+  // Get collection modules and validate data against each
+  const modulesResult = await getCollectionModules(id);
+  console.log("modulesResult", modulesResult);
+  if (modulesResult.isErr()) {
+    c.status(400 as StatusCode);
+    return c.json({ error: modulesResult.error.message }) as any;
+  }
+
+  for (const { module } of modulesResult.value) {
+    console.log("module", module);
+    const validationResult = await validateTokenData(body.data, module.id);
+    console.log("validationResult", validationResult);
+    if (validationResult.isErr()) {
+      c.status(400 as StatusCode);
+      return c.json({ error: validationResult.error.message }) as any;
     }
-  }, {
-    response: MegadataTokenResponse
-  });
+  }
+
+  const tokenResult = await MegadataService.createToken(id, body);
+  console.log("tokenResult", tokenResult);
+  if (tokenResult.isErr()) {
+    c.status(tokenResult.error.status as StatusCode);
+    return c.json({ error: tokenResult.error.context }) as any;
+  }
+  
+  c.status(201 as StatusCode);
+  return c.json(tokenResult.value);
+});
+
+app.openapi({ ...getTokenRoute, method: 'get', path: '/collections/{collection_id}/tokens/{token_id}'}, async (c) => {
+  const collectionId = Number(c.req.param('collection_id')!);
+  const tokenId = c.req.param('token_id')!;
+  
+  const result = await MegadataService.getTokenById(collectionId, tokenId);
+  
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
+  }
+  
+  const token = result.value;
+  if (!token) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Token not found" }) as any;
+  }
+  
+  return c.json(token);
+});
+
+app.openapi({ ...updateTokenRoute, method: 'put', path: '/collections/{collection_id}/tokens/{token_id}'}, async (c) => {
+  const collectionId = Number(c.req.param('collection_id')!);
+  const tokenId = c.req.param('token_id')!;
+  console.log(`Updating token ${tokenId} for collection ${collectionId}`);
+  const { data } = await c.req.json();
+
+  // Get collection modules and validate data against each
+  const modulesResult = await getCollectionModules(collectionId);
+  if (modulesResult.isErr()) {
+    c.status(400 as StatusCode);
+    return c.json({ error: modulesResult.error.message }) as any;
+  }
+
+  for (const { module } of modulesResult.value) {
+    const validationResult = await validateTokenData(data, module.id);
+    if (validationResult.isErr()) {
+      c.status(400 as StatusCode);
+      return c.json({ error: validationResult.error.message }) as any;
+    }
+  }
+
+  const result = await MegadataService.updateToken(collectionId, tokenId, data);
+  
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
+  }
+  
+  const token = result.value;
+  if (!token) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Token not found" }) as any;
+  }
+
+  return c.json(token);
+});
+
+app.openapi({ ...deleteTokenRoute, method: 'delete', path: '/collections/{collection_id}/tokens/{token_id}'}, async (c) => {
+  const collectionId = Number(c.req.param('collection_id')!);
+  const tokenId = c.req.param('token_id')!;
+  
+  const result = await MegadataService.deleteToken(collectionId, tokenId);
+  
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
+  }
+  
+  const token = result.value;
+  if (!token) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Token not found" }) as any;
+  }
+  
+  return c.json({ success: true });
+});
+
+export { app as megadataRoutes };

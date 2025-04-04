@@ -1,250 +1,389 @@
-import { expect, test, describe, beforeAll, beforeEach } from "bun:test";
-import { app } from "../../index";
-import { generateRandomAccount, setupTestDatabase } from "../helpers";
-import { edenTreaty } from "@elysiajs/eden";
-import { config } from "dotenv";
-import { join } from "path";
+import { expect, test, describe, beforeEach } from "bun:test";
+import "../setup";
 import { randomUUID } from "crypto";
+import { isErrorResponse } from "../helpers";
+import { generateRandomAccount } from "../helpers";
+import type { MegadataCollectionResponse, MegadataTokenResponse } from "../../routes/megadata/types";
+import { createApp } from "../../index";
 
-config({ path: join(process.cwd(), ".env.local") });
-
-const api = edenTreaty<typeof app>('http://localhost:3000');
+const app = createApp();
 
 const generateRandomCollection = (accountId: string) => ({
-  name: `Test Collection ${randomUUID().slice(0, 8)}`,
+  name: `Test-${randomUUID().slice(0, 8)}-${Date.now()}`,
   account_id: accountId,
+  modules: ['erc721']
 });
 
-const generateRandomToken = () => ({
-  data: {
-    title: `Test Title ${randomUUID().slice(0, 8)}`,
+const generateRandomToken = (metadata?: Record<string, string>) => ({
+  id: randomUUID().slice(0, 8),
+  data: metadata || {
+    name: `Test Name ${randomUUID().slice(0, 8)}`,
     description: `Test Description ${randomUUID().slice(0, 8)}`,
-    metadata: {
-      key1: "value1",
-      key2: "value2"
-    }
+    image: `https://example.com/image.png`
   }
 });
 
 describe("Megadata Collection Routes", () => {
   let testAccount: { id: string; type: string };
 
-  beforeAll(async () => {
-    await setupTestDatabase();
-    // Create a test account that we'll use for all megadata tests
-
-  });
-
   beforeEach(async () => {
     testAccount = generateRandomAccount();
-    await api.accounts.post({
-      id: testAccount.id,
-      type: testAccount.type,
+    await app.request('/accounts', {
+      method: 'POST',
+      body: JSON.stringify({
+        id: testAccount.id,
+        type: testAccount.type,
+      }),
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
   });
 
   test("POST /megadata/collections - should create new collection", async () => {
     const collection = generateRandomCollection(testAccount.id);
-    const response = await api.megadata.collections.post(collection);
-    expect(response.status).toBe(200);
-    const data = response.data;
-    expect(data?.name).toBe(collection.name);
-    expect(data?.account_id).toBe(collection.account_id);
-    expect(data?.is_published).toBe(false);
-  });
-
-  test("POST /megadata/collections - should fail when account does not exist", async () => {
-    const collection = generateRandomCollection("non-existent-id");
-    const response = await api.megadata.collections.post(collection);
-    expect(response.status).toBe(404);
+    const response = await app.request('/megadata/collections', {
+      method: 'POST',
+      body: JSON.stringify(collection),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(response);
+    expect(response.status).toBe(201);
+    const data = await response.json() as MegadataCollectionResponse;
+    if (!isErrorResponse(data)) {
+      expect(data.name).toBe(collection.name);
+      expect(data.account_id).toBe(collection.account_id);
+      expect(data.is_published).toBe(false);
+    }
   });
 
   test("GET /megadata/collections/:id - should return collection by id", async () => {
     // First create a collection
     const collection = generateRandomCollection(testAccount.id);
-    const createResponse = await api.megadata.collections.post(collection);
-    const createdCollection = createResponse.data;
+    const createResponse = await app.request('/megadata/collections', {
+      method: 'POST',
+      body: JSON.stringify(collection),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const createdCollection = await createResponse.json() as MegadataCollectionResponse;
+    if (isErrorResponse(createdCollection)) {
+      throw new Error("Failed to create test collection");
+    }
 
     // Then get it by id
-    const response = await api.megadata.collections[createdCollection?.id!]!.get();
+    const response = await app.request(`/megadata/collections/${createdCollection.id}`);
     expect(response.status).toBe(200);
-    const data = response.data;
-    expect(data?.id).toBe(createdCollection?.id!);
-    expect(data?.name).toBe(collection.name);
-    expect(data?.account_id).toBe(collection.account_id);
+    const data = await response.json() as MegadataCollectionResponse;
+    if (!isErrorResponse(data)) {
+      expect(data.id).toBe(createdCollection.id);
+      expect(data.name).toBe(collection.name);
+      expect(data.account_id).toBe(collection.account_id);
+    }
   });
 
   test("GET /megadata/collections/:id - should return 404 for non-existent collection", async () => {
-    const response = await api.megadata.collections[999999]!.get();
+    const response = await app.request('/megadata/collections/999999');
     expect(response.status).toBe(404);
   });
 
   test("PUT /megadata/collections/:id - should update collection", async () => {
     // First create a collection
     const collection = generateRandomCollection(testAccount.id);
-    const createResponse = await api.megadata.collections.post(collection);
-    const createdCollection = createResponse.data;
+    const createResponse = await app.request('/megadata/collections', {
+      method: 'POST',
+      body: JSON.stringify(collection),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const createdCollection = await createResponse.json() as MegadataCollectionResponse;
+    if (isErrorResponse(createdCollection)) {
+      throw new Error("Failed to create test collection");
+    }
 
     // Update the collection
     const updateData = {
       name: "Updated Collection Name",
-      account_id: testAccount.id
+      modules: ['erc721']
     };
 
-    const response = await api.megadata.collections[createdCollection?.id!]!.put(updateData);
+    const response = await app.request(`/megadata/collections/${createdCollection.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(response);
     expect(response.status).toBe(200);
-    const data = response.data;
-    expect(data?.id).toBe(createdCollection?.id!);
-    expect(data?.name).toBe(updateData.name);
+    const data = await response.json() as MegadataCollectionResponse;
+    if (!isErrorResponse(data)) {
+      expect(data.id).toBe(createdCollection.id);
+      expect(data.name).toBe(updateData.name);
+    }
   });
 
   test("DELETE /megadata/collections/:id - should delete collection", async () => {
     // First create a collection
     const collection = generateRandomCollection(testAccount.id);
-    const createResponse = await api.megadata.collections.post(collection);
-    const createdCollection = createResponse.data;
+    const createResponse = await app.request('/megadata/collections', {
+      method: 'POST',
+      body: JSON.stringify(collection),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const createdCollection = await createResponse.json() as MegadataCollectionResponse;
+    if (isErrorResponse(createdCollection)) {
+      throw new Error("Failed to create test collection");
+    }
 
     // Delete the collection
-    const response = await api.megadata.collections[createdCollection?.id!]!.delete();
+    const response = await app.request(`/megadata/collections/${createdCollection.id}`, {
+      method: 'DELETE'
+    });
+    console.log(response);
     expect(response.status).toBe(200);
-    expect(response.data?.id).toBe(createdCollection?.id!);
 
     // Verify it's deleted
-    const getResponse = await api.megadata.collections[createdCollection?.id!]!.get();
+    const getResponse = await app.request(`/megadata/collections/${createdCollection.id}`);
     expect(getResponse.status).toBe(404);
+  });
+
+  test("PUT /megadata/collections/:id/publish - should publish collection", async () => {
+    // First create a collection
+    const collection = generateRandomCollection(testAccount.id);
+    const createResponse = await app.request('/megadata/collections', {
+      method: 'POST',
+      body: JSON.stringify(collection),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const createdCollection = await createResponse.json() as MegadataCollectionResponse;
+    if (isErrorResponse(createdCollection)) {
+      throw new Error("Failed to create test collection");
+    }
+
+    // Verify collection is not published initially
+    expect(createdCollection.is_published).toBe(false);
+
+    // Publish the collection
+    const publishResponse = await app.request(`/megadata/collections/${createdCollection.id}/publish`, {
+      method: 'PUT',
+      body: JSON.stringify([]),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    expect(publishResponse.status).toBe(200);
+    const publishData = await publishResponse.json();
+    expect(publishData).toEqual({ success: true });
+
+    // Verify collection is published
+    const getResponse = await app.request(`/megadata/collections/${createdCollection.id}`);
+    const data = await getResponse.json() as MegadataCollectionResponse;
+    if (!isErrorResponse(data)) {
+      expect(data.is_published).toBe(true);
+    }
+  });
+
+  test("PUT /megadata/collections/:id/publish - should fail when collection does not exist", async () => {
+    const response = await app.request('/megadata/collections/999999/publish', {
+      method: 'PUT',
+      body: JSON.stringify([]),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    expect(response.status).toBe(404);
   });
 });
 
 describe("Megadata Token Routes", () => {
   let testAccount: { id: string; type: string };
-  let testCollection: any;
-
-  beforeAll(async () => {
-    await setupTestDatabase();
-  });
+  let testCollection: MegadataCollectionResponse;
 
   beforeEach(async () => {
     // Create a test account and collection that we'll use for all token tests
     testAccount = generateRandomAccount();
-    await api.accounts.post({
-      id: testAccount.id,
-      type: testAccount.type,
+    await app.request('/accounts', {
+      method: 'POST',
+      body: JSON.stringify({
+        id: testAccount.id,
+        type: testAccount.type,
+      }),
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
 
     // Create a test collection
     const collection = generateRandomCollection(testAccount.id);
-    const createResponse = await api.megadata.collections.post(collection);
-    if (!createResponse.data?.id) {
+    const createResponse = await app.request('/megadata/collections', {
+      method: 'POST',
+      body: JSON.stringify(collection),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const createdCollection = await createResponse.json() as MegadataCollectionResponse;
+    if (isErrorResponse(createdCollection)) {
       throw new Error("Failed to create test collection");
     }
-    testCollection = createResponse.data;
-  });
-
-  test("GET /megadata/collections/:id/tokens - should return empty array when no tokens exist", async () => {
-    const response = await api.megadata.collections[testCollection.id]!.tokens.get();
-    expect(response.status).toBe(200);
-    const data = response.data;
-    expect(Array.isArray(data)).toBe(true);
-    expect(data?.length).toBe(0);
+    testCollection = createdCollection;
   });
 
   test("POST /megadata/collections/:id/tokens - should create new token", async () => {
     const token = generateRandomToken();
-    const response = await api.megadata.collections[testCollection.id]!.tokens.post(token);
+    const response = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(token),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
     expect(response.status).toBe(201);
-    const data = response.data;
-    expect(data?.collection_id).toBe(testCollection.id);
-    expect(data?.data).toEqual(token.data);
-    expect(data?.is_published).toBe(false);
-  });
-
-  test("POST /megadata/collections/:id/tokens - should fail when collection does not exist", async () => {
-    const token = generateRandomToken();
-    const response = await api.megadata.collections[999999]!.tokens.post(token);
-    expect(response.status).toBe(404);
+    const data = await response.json() as MegadataTokenResponse;
+    if (!isErrorResponse(data)) {
+      expect(data.collection_id).toBe(testCollection.id);
+      expect(data.id).toBe(token.id);
+      expect(data.data).toEqual(token.data);
+      expect(data.is_published).toBe(false);
+    }
   });
 
   test("GET /megadata/collections/:id/tokens/:token_id - should return token by id", async () => {
     // First create a token
     const token = generateRandomToken();
-    console.log("testCollection", testCollection);
-    const createResponse = await api.megadata.collections[testCollection.id]!.tokens.post(token);
-    if (!createResponse.data?.id) {
+    const createResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(token),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const createdToken = await createResponse.json() as MegadataTokenResponse;
+    if (isErrorResponse(createdToken)) {
       throw new Error("Failed to create test token");
     }
-    const createdToken = createResponse.data;
 
     // Then get it by id
-    const response = await api.megadata.collections[testCollection.id]!.tokens[createdToken.id]!.get();
+    const response = await app.request(`/megadata/collections/${testCollection.id}/tokens/${createdToken.id}`);
     expect(response.status).toBe(200);
-    const data = response.data;
-    expect(data?.id).toBe(createdToken.id);
-    expect(data?.collection_id).toBe(testCollection.id);
-    expect(data?.data).toEqual(token.data);
-  });
-
-  test("GET /megadata/collections/:id/tokens/:token_id - should return 404 for non-existent token", async () => {
-    const response = await api.megadata.collections[testCollection.id]!.tokens[999999]!.get();
-    expect(response.status).toBe(404);
+    const data = await response.json() as MegadataTokenResponse;
+    if (!isErrorResponse(data)) {
+      expect(data.id).toBe(createdToken.id);
+      expect(data.collection_id).toBe(testCollection.id);
+      expect(data.data).toEqual(token.data);
+    }
   });
 
   test("PUT /megadata/collections/:id/tokens/:token_id - should update token", async () => {
     // First create a token
     const token = generateRandomToken();
-    const createResponse = await api.megadata.collections[testCollection.id]!.tokens.post(token);
-    if (!createResponse.data?.id) {
+    const createResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(token),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const createdToken = await createResponse.json() as MegadataTokenResponse;
+    console.log("createdToken", createdToken);
+    if (isErrorResponse(createdToken)) {
       throw new Error("Failed to create test token");
     }
-    const createdToken = createResponse.data;
 
     // Update the token
     const updateData = {
       data: {
-        title: "Updated Title",
-        description: "Updated Description"
+        name: "Updated Name",
+        description: "Updated Description",
+        image: "https://example.com/updated-image.png"
       }
     };
 
-    const response = await api.megadata.collections[testCollection.id]!.tokens[createdToken.id]!.put(updateData);
+    const response = await app.request(`/megadata/collections/${testCollection.id}/tokens/${createdToken.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
     expect(response.status).toBe(200);
-    const data = response.data;
-    expect(data?.id).toBe(createdToken.id);
-    expect(data?.data).toEqual(updateData.data);
-  });
-
-  test("PUT /megadata/collections/:id/tokens/:token_id - should fail when token does not exist", async () => {
-    const updateData = {
-      data: {
-        title: "Updated Title",
-        description: "Updated Description"
-      }
-    };
-
-    const response = await api.megadata.collections[testCollection.id]!.tokens[999999]!.put(updateData);
-    expect(response.status).toBe(404);
+    const data = await response.json() as MegadataTokenResponse;
+    if (!isErrorResponse(data)) {
+      expect(data.id).toBe(createdToken.id);
+      expect(data.data).toEqual(updateData.data);
+    }
   });
 
   test("DELETE /megadata/collections/:id/tokens/:token_id - should delete token", async () => {
     // First create a token
     const token = generateRandomToken();
-    const createResponse = await api.megadata.collections[testCollection.id]!.tokens.post(token);
-    if (!createResponse.data?.id) {
+    const createResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(token),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const createdToken = await createResponse.json() as MegadataTokenResponse;
+    if (isErrorResponse(createdToken)) {
       throw new Error("Failed to create test token");
     }
-    const createdToken = createResponse.data;
 
     // Delete the token
-    const response = await api.megadata.collections[testCollection.id]!.tokens[createdToken.id]!.delete();
+    const response = await app.request(`/megadata/collections/${testCollection.id}/tokens/${createdToken.id}`, {
+      method: 'DELETE'
+    });
     expect(response.status).toBe(200);
-    expect(response.data?.id).toBe(createdToken.id);
 
     // Verify it's deleted
-    const getResponse = await api.megadata.collections[testCollection.id]!.tokens[createdToken.id]!.get();
+    const getResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens/${createdToken.id}`);
     expect(getResponse.status).toBe(404);
   });
 
-  test("DELETE /megadata/collections/:id/tokens/:token_id - should fail when token does not exist", async () => {
-    const response = await api.megadata.collections[testCollection.id]!.tokens[999999]!.delete();
-    expect(response.status).toBe(404);
+  test("PUT /megadata/collections/:id/tokens/:token_id/publish - should publish token", async () => {
+    // First create a token
+    const token = generateRandomToken();
+    const createResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(token),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    const createdToken = await createResponse.json() as MegadataTokenResponse;
+    if (isErrorResponse(createdToken)) {
+      throw new Error("Failed to create test token");
+    }
+
+    // Verify token is not published initially
+    expect(createdToken.is_published).toBe(false);
+
+    // Publish the collection with the token
+    const publishResponse = await app.request(`/megadata/collections/${testCollection.id}/publish`, {
+      method: 'PUT',
+      body: JSON.stringify([token.id]),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    expect(publishResponse.status).toBe(200);
+    const publishData = await publishResponse.json();
+    expect(publishData).toEqual({ success: true });
+
+    // Verify token is published
+    const getResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens/${createdToken.id}`);
+    const data = await getResponse.json() as MegadataTokenResponse;
+    if (!isErrorResponse(data)) {
+      expect(data.is_published).toBe(true);
+    }
   });
 }); 

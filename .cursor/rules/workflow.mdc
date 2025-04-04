@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Workflow
+
+- After making changes, always run `bun test` to verify your changes didn't break our tests.
+

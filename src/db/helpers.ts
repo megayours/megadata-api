@@ -1,18 +1,22 @@
-import { sql } from "bun";
+import { eq } from 'drizzle-orm';
+import { db } from './index';
+import { account } from './schema';
+import type { Error } from '../types/error';
 
 export async function accountExists(accountId: string): Promise<boolean> {
-  const [account] = await sql`
-    SELECT 1 FROM account 
-    WHERE id = ${accountId}
-  `;
-
-  console.log("account", account);
-  return !!account;
+  const result = await db.select().from(account).where(eq(account.id, accountId)).limit(1);
+  return result.length > 0;
 }
 
-export async function handleDatabaseError(error: any): Promise<never> {
-  if (error.code === "SQLITE_CONSTRAINT_FOREIGNKEY") {
-    throw new Error("Account does not exist");
+export const handleDatabaseError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return {
+      context: error.message,
+      status: 500,
+    };
   }
-  throw error;
-}
+  return {
+    context: 'Unknown database error',
+    status: 500,
+  };
+};

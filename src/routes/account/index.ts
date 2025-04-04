@@ -1,72 +1,65 @@
-import { Elysia, t } from "elysia";
-import { sql } from "bun";
-import { handleDatabaseError } from "../../db/helpers";
-import { AccountResponse, CreateAccountRequest } from "./types";
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { AccountService } from '../../services/account.service';
+import {
+  getAccountsRoute,
+  getAccountRoute,
+  createAccountRoute,
+  deleteAccountRoute
+} from './openapi';
 
-export const accountRoutes = new Elysia()
-  .get("/accounts", async ({ set }) => {
-    try {
-      const accounts: any[] = await sql`SELECT * FROM account ORDER BY created_at DESC`;
-      return accounts;
-    } catch (error) {
-      set.status = 500;
-      throw handleDatabaseError(error);
-    }
-  }, {
-    response: t.Array(AccountResponse),
-  })
-  .get("/accounts/:id", async ({ params: { id }, set }) => {
-    try {
-      console.log("Received get account request:", id);
-      const [account] = await sql`SELECT * FROM account WHERE id = ${id}`;
-      if (!account) {
-        set.status = 404;
-        return { error: "Account not found" };
-      }
-      console.log("Account found:", account);
-      return account;
-    } catch (error) {
-      set.status = 500;
-      throw handleDatabaseError(error);
-    }
-  }, {
-    response: AccountResponse
-  })
-  .post("/accounts", async ({ body, set }) => {
-    console.log("Received create account request:", body);
-    const { id, type } = body;
+const app = new OpenAPIHono();
 
-    try {
-      const [account] = await sql`
-        INSERT INTO account (id, type)
-        VALUES (${id}, ${type})
-        RETURNING *
-      `;
-      set.status = 201;
-      return account;
-    } catch (error) {
-      console.error("Error creating account:", error);
-      set.status = 500;
-      throw handleDatabaseError(error);
-    }
-  }, {
-    body: CreateAccountRequest,
-    response: AccountResponse
-  })
-  .delete("/accounts/:id", async ({ params: { id }, set }) => {
-    try {
-      const [account] = await sql`
-        DELETE FROM account 
-        WHERE id = ${id}
-        RETURNING *
-      `;
-      if (!account) {
-        set.status = 404;
-        return { error: "Account not found" };
-      }
-      return { success: true };
-    } catch (error) {
-      set.status = 500;
-      throw handleDatabaseError(error);
-    }
-  }); 
+app.openapi({ ...getAccountsRoute, method: 'get', path: '' }, async (c) => {
+  const result = await AccountService.getAllAccounts();
+  
+  if (result.isErr()) {
+    return c.json({ error: result.error.context }, 500);
+  }
+  
+  return c.json(result.value, 200);
+});
+
+app.openapi({ ...getAccountRoute, method: 'get', path: '/{id}' }, async (c) => {    
+  const id = c.req.param('id')!;
+  const result = await AccountService.getAccountById(id);
+  
+  if (result.isErr()) {
+    return c.json({ error: result.error.context }, 500);
+  }
+  
+  const account = result.value;
+  if (!account) {
+    return c.json({ error: "Account not found" }, 404);
+  }
+  
+  return c.json(account, 200);
+});
+
+app.openapi({ ...createAccountRoute, method: 'post', path: '' }, async (c) => {
+  const body = await c.req.json();
+  const result = await AccountService.createAccount(body);
+  
+  if (result.isErr()) {
+    return c.json({ error: result.error.context }, 500);
+  }
+  
+  return c.json(result.value, 201);
+});
+
+app.openapi({ ...deleteAccountRoute, method: 'delete', path: '/{id}' }, async (c) => {
+  const id = c.req.param('id')!;
+  const result = await AccountService.deleteAccount(id);
+  
+  if (result.isErr()) {
+    return c.json({ error: result.error.context }, 500);
+  }
+  
+  const account = result.value;
+  if (!account) {
+    return c.json({ error: "Account not found" }, 404);
+  }
+  
+  return c.json({ success: true }, 200);
+});
+
+export { app as accountRoutes }; 

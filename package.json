@@ -4,14 +4,18 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun run src/index.ts",
-    "migrate": "bun run src/db/migrate.ts",
-    "dev": "bun --watch run src/index.ts",
-    "test": "bun test"
+    "start": "bun run src/server.ts",
+    "dev": "bun run --watch src/server.ts",
+    "test": "bun test",
+    "db:generate": "drizzle-kit generate --dialect postgresql --schema src/db/schema.ts",
+    "db:push": "drizzle-kit push --dialect postgresql --schema src/db/schema.ts",
+    "db:seed": "bun run src/db/seed-modules.ts",
+    "db:studio": "drizzle-kit studio"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node": "^22.14.0"
+    "@types/node": "^22.14.0",
+    "drizzle-kit": "^0.30.6"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -20,7 +24,15 @@
     "@elysiajs/cors": "^1.2.0",
     "@elysiajs/eden": "^1.2.0",
     "@elysiajs/swagger": "^1.2.2",
+    "@hono/swagger-ui": "^0.5.1",
+    "@hono/zod-openapi": "^0.19.2",
+    "@hono/zod-validator": "^0.4.3",
     "dotenv": "^16.4.7",
-    "elysia": "^1.2.25"
+    "drizzle-orm": "^0.41.0",
+    "elysia": "^1.2.25",
+    "hono": "^4.7.5",
+    "neverthrow": "^8.2.0",
+    "postchain-client": "1.21.0",
+    "postgres": "^3.4.5"
   }
 }

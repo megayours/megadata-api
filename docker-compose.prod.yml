@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - backend
+
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+      - "9090:9090"
+    env_file:
+      - path: ./.env
+        required: true
+    depends_on:
+      - postgres
+      - ipfs
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      # HTTPS Router
+      - "traefik.http.routers.megadata-api-secure.rule=Host(`megadata-api.testnet.megayours.com`)"
+      - "traefik.http.routers.megadata-api-secure.entrypoints=websecure"
+      - "traefik.http.routers.megadata-api-secure.tls=true"
+      - "traefik.http.routers.megadata-api-secure.tls.certresolver=letsencrypt"
+      # Service (shared between both routers)
+      - "traefik.http.services.megadata-api.loadbalancer.server.port=3000"
+    networks:
+      - backend
+      - traefik
+
+volumes:
+  ipfs_data:
+  postgres_data:
+
+networks:
+  backend:
+    name: backend
+  traefik:
+    external: true
