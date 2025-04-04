@@ -1,7 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { uploadFileRoute } from "./openapi";
 import { AbstractionChainService } from "../../services/abstraction-chain.service";
-import { SHA256 } from "bun";
+import { FsFile, type ContentType } from "filehub";
 
 const app = new OpenAPIHono();
 
@@ -10,14 +10,15 @@ app.openapi({
 }, async (c) => {
   const { file, contentType, account } = c.req.valid('json');
   const fileBuffer = Buffer.from(file, 'base64');
+
+  const fsFile = FsFile.fromData(fileBuffer, { 'Content-Type': contentType as ContentType });
   
-  const result = await AbstractionChainService.uploadFile(fileBuffer, contentType, account);
+  const result = await AbstractionChainService.uploadFile(fsFile.data, contentType, account);
   if (result.isErr()) {
     return c.json({ error: result.error.message }, 500);
   }
 
-  const hash = Buffer.from(SHA256.hash(file).buffer).toString('hex');
-  return c.json({ hash }, 201);
+  return c.json({ hash: fsFile.hash.toString('hex') }, 201);
 });
 
 export {

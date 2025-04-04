@@ -30,6 +30,7 @@
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.41.0",
     "elysia": "^1.2.25",
+    "filehub": "^1.0.4",
     "hono": "^4.7.5",
     "neverthrow": "^8.2.0",
     "postchain-client": "1.21.0",
