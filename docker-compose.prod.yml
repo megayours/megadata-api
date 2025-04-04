@@ -23,7 +23,6 @@ services:
         required: true
     depends_on:
       - postgres
-      - ipfs
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
@@ -39,7 +38,6 @@ services:
       - traefik
 
 volumes:
-  ipfs_data:
   postgres_data:
 
 networks:
