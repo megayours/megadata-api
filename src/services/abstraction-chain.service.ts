@@ -12,7 +12,7 @@ export class AbstractionChainService {
         operations: [
           {
             name: "megadata.create_collection",
-            args: [account, Buffer.from(id.toString()), name]
+            args: [account, id.toString(), name]
           }
         ],
         signers: [signatureProvider.pubKey]
@@ -31,7 +31,7 @@ export class AbstractionChainService {
 
     const operations = items.map(({ id, data }) => ({
       name: "megadata.create_item",
-      args: [Buffer.from(collectionId.toString()), id.toString(), JSON.stringify({ erc721: data })]
+      args: [collectionId.toString(), id.toString(), JSON.stringify({ erc721: data })]
     }));
 
     try {
