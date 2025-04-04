@@ -17,7 +17,6 @@ services:
     build: .
     ports:
       - "3000:3000"
-      - "9090:9090"
     env_file:
       - path: ./.env
         required: true
