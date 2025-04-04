@@ -29,6 +29,10 @@ export function createApp() {
     },
     servers: [
       {
+        url: 'https://megadata-api.testnet.megayours.com',
+        description: 'Testnet server'
+      },
+      {
         url: 'http://localhost:3000',
         description: 'Local development server'
       }
