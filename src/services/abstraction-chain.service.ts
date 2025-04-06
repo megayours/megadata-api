@@ -31,7 +31,7 @@ export class AbstractionChainService {
 
     const operations = items.map(({ id, data }) => ({
       name: "megadata.create_item",
-      args: [collectionId.toString(), id.toString(), JSON.stringify({ erc721: data })]
+      args: [collectionId.toString(), id.toString(), JSON.stringify(data)]
     }));
 
     try {

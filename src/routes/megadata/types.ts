@@ -32,7 +32,10 @@ export const CreateMegadataTokenSchema = z.object({
   data: z.record(z.any()),
 });
 
+export const CreateMegadataTokensSchema = z.array(CreateMegadataTokenSchema);
+
 export type CreateMegadataTokenRequest = z.infer<typeof CreateMegadataTokenSchema>;
+export type CreateMegadataTokensRequest = z.infer<typeof CreateMegadataTokensSchema>;
 
 export const UpdateMegadataTokenSchema = z.object({
   data: z.record(z.any()),

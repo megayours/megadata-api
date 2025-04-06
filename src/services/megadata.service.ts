@@ -1,12 +1,13 @@
 import { db } from "../db";
-import { megadataCollection, megadataToken, collectionModule } from "../db/schema";
+import { megadataCollection, megadataToken, collectionModule, module } from "../db/schema";
 import { handleDatabaseError } from "../db/helpers";
-import type { MegadataCollection, NewMegadataCollection, MegadataToken, NewMegadataToken } from "../db";
+import type { MegadataCollection, NewMegadataCollection, MegadataToken, NewMegadataToken, Module } from "../db";
 import { err, ok, ResultAsync } from "neverthrow";
 import { AbstractionChainService } from "./abstraction-chain.service";
 import type { Error } from "../types/error";
 import { eq, and, inArray, sql, getTableColumns } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { formatData } from "../utils/data-formatter";
 
 export class MegadataService {
   static async getAllCollections(accountId: string): Promise<ResultAsync<MegadataCollection[], Error>> {
@@ -72,7 +73,7 @@ export class MegadataService {
     return ResultAsync.fromPromise<MegadataCollection | null, Error>(
       db.transaction(async (tx) => {
         const [record] = await tx.update(megadataCollection)
-          .set({ 
+          .set({
             name,
             updated_at: Math.floor(Date.now() / 1000)
           })
@@ -163,10 +164,36 @@ export class MegadataService {
     }
 
     const toPublish = unPublishedTokens.value.filter(token => tokenIds.includes(token.id));
-    await AbstractionChainService.createItems(collection.id, toPublish.map(token => ({ 
-      id: token.id, 
-      data: token.data as Record<string, any> 
-    })));
+
+    if (toPublish.length === 0) {
+        return ok(true);
+    }
+
+    const modulesResult = await ResultAsync.fromPromise<Module[], Error>(
+      db.select({
+        ...getTableColumns(module)
+      })
+        .from(collectionModule)
+        .innerJoin(module, eq(collectionModule.module_id, module.id))
+        .where(eq(collectionModule.collection_id, id)),
+      (error) => handleDatabaseError(error)
+    );
+
+    if (modulesResult.isErr()) {
+        return err(modulesResult.error);
+    }
+    const collectionModules = modulesResult.value;
+
+    const itemsToCreate = toPublish.map(token => ({
+        id: token.id,
+        data: formatData(token.data as Record<string, any>, collectionModules)
+    }));
+
+    const createItemsResult = await AbstractionChainService.createItems(collection.id, itemsToCreate);
+
+    if (createItemsResult.isErr()) {
+        return err({ context: createItemsResult.error.message, status: 500 });
+    }
 
     return ResultAsync.fromPromise<boolean, Error>(
       db.update(megadataToken)
@@ -180,11 +207,34 @@ export class MegadataService {
     );
   }
 
-  static async getCollectionTokens(collectionId: number): Promise<ResultAsync<MegadataToken[], Error>> {
-    return ResultAsync.fromPromise<MegadataToken[], Error>(
-      db.select()
-        .from(megadataToken)
-        .where(eq(megadataToken.collection_id, collectionId)),
+  static async getCollectionTokens(collectionId: number, page: number = 1, limit: number = 20): Promise<ResultAsync<{ data: MegadataToken[], pagination: { total: number, page: number, limit: number, total_pages: number } }, Error>> {
+    return ResultAsync.fromPromise(
+      Promise.all([
+        // Get total count
+        db.select({ count: sql<number>`count(*)::int` })
+          .from(megadataToken)
+          .where(eq(megadataToken.collection_id, collectionId))
+          .then(result => result[0]?.count ?? 0),
+        
+        // Get paginated data
+        db.select()
+          .from(megadataToken)
+          .where(eq(megadataToken.collection_id, collectionId))
+          .limit(limit)
+          .offset((page - 1) * limit)
+          .orderBy(megadataToken.row_id)
+      ]).then(([total, data]) => {
+        const total_pages = Math.ceil(total / limit);
+        return {
+          data,
+          pagination: {
+            total,
+            page,
+            limit,
+            total_pages
+          }
+        };
+      }),
       (error) => handleDatabaseError(error)
     );
   }
@@ -203,7 +253,16 @@ export class MegadataService {
     );
   }
 
-  static async createToken(collectionId: number, token: NewMegadataToken): Promise<ResultAsync<MegadataToken, Error>> {
+  static async createTokens(collectionId: number, tokens: NewMegadataToken[]): Promise<ResultAsync<MegadataToken[], Error>> {
+    return ResultAsync.fromPromise<MegadataToken[], Error>(
+      db.insert(megadataToken)
+        .values(tokens.map(token => ({ ...token, collection_id: collectionId })))
+        .returning(),
+      (error) => handleDatabaseError(error)
+    );
+  }
+
+  private static async createToken(collectionId: number, token: NewMegadataToken): Promise<ResultAsync<MegadataToken, Error>> {
     return ResultAsync.fromPromise<MegadataToken, Error>(
       db.insert(megadataToken)
         .values({ ...token, collection_id: collectionId })
@@ -220,7 +279,7 @@ export class MegadataService {
   static async updateToken(collectionId: number, tokenId: string, data: any): Promise<ResultAsync<MegadataToken | null, Error>> {
     return ResultAsync.fromPromise<MegadataToken | null, Error>(
       db.update(megadataToken)
-        .set({ 
+        .set({
           data,
           updated_at: Math.floor(Date.now() / 1000)
         })

@@ -3,10 +3,10 @@ import {
   CreateMegadataCollectionSchema, 
   ErrorResponseSchema, 
   MegadataCollectionResponseSchema,
-  CreateMegadataTokenSchema,
   UpdateMegadataTokenSchema,
   MegadataTokenResponseSchema,
   SuccessResponseSchema,
+  CreateMegadataTokensSchema,
 } from "./types";
 
 export const CollectionSchema = z.object({
@@ -236,14 +236,28 @@ export const publishCollectionRoute = {
 
 export const getCollectionTokensRoute = {
   tags: ['megadata'],
+  request: {
+    query: z.object({
+      page: z.string().optional().default("1"),
+      limit: z.string().optional().default("20")
+    })
+  },
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: MegadataTokenResponseSchema.array()
+          schema: z.object({
+            data: MegadataTokenResponseSchema.array(),
+            pagination: z.object({
+              total: z.number(),
+              page: z.number(),
+              limit: z.number(),
+              total_pages: z.number()
+            })
+          })
         }
       },
-      description: 'List of all tokens in the collection'
+      description: 'List of tokens in the collection with pagination info'
     },
     404: {
       content: {
@@ -270,7 +284,7 @@ export const createTokenRoute = {
     body: {
       content: {
         'application/json': {
-          schema: CreateMegadataTokenSchema
+          schema: CreateMegadataTokensSchema
         }
       }
     }
@@ -279,10 +293,10 @@ export const createTokenRoute = {
     201: {
       content: {
         'application/json': {
-          schema: MegadataTokenResponseSchema
+          schema: MegadataTokenResponseSchema.array()
         }
       },
-      description: 'Token created successfully'
+      description: 'Tokens created successfully'
     },
     400: {
       content: {

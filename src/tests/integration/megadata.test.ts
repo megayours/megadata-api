@@ -272,19 +272,92 @@ describe("Megadata Token Routes", () => {
     const token = generateRandomToken();
     const response = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
       method: 'POST',
-      body: JSON.stringify(token),
+      body: JSON.stringify([token]),
       headers: {
         'Content-Type': 'application/json'
       }
     });
     expect(response.status).toBe(201);
-    const data = await response.json() as MegadataTokenResponse;
-    if (!isErrorResponse(data)) {
-      expect(data.collection_id).toBe(testCollection.id);
-      expect(data.id).toBe(token.id);
-      expect(data.data).toEqual(token.data);
-      expect(data.is_published).toBe(false);
+    const data = await response.json() as MegadataTokenResponse[];
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBe(1);
+    const createdToken = data[0];
+    expect(createdToken).toBeDefined();
+    if (createdToken && !isErrorResponse(createdToken)) {
+      expect(createdToken.collection_id).toBe(testCollection.id);
+      expect(createdToken.id).toBe(token.id);
+      expect(createdToken.data).toEqual(token.data);
+      expect(createdToken.is_published).toBe(false);
     }
+  });
+
+  test("POST /megadata/collections/:id/tokens - should create multiple tokens in batch", async () => {
+    const tokens = [
+      generateRandomToken(),
+      generateRandomToken(),
+      generateRandomToken()
+    ];
+    
+    const response = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(tokens),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    expect(response.status).toBe(201);
+    const data = await response.json() as MegadataTokenResponse[];
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBe(tokens.length);
+    
+    // Verify each token was created correctly
+    data.forEach((createdToken, index) => {
+      expect(createdToken).toBeDefined();
+      if (createdToken && !isErrorResponse(createdToken) && index < tokens.length) {
+        const expectedToken = tokens[index];
+        expect(expectedToken).toBeDefined();
+        if (expectedToken) {
+          expect(createdToken.collection_id).toBe(testCollection.id);
+          expect(createdToken.id).toBe(expectedToken.id);
+          expect(createdToken.data).toEqual(expectedToken.data);
+          expect(createdToken.is_published).toBe(false);
+        }
+      }
+    });
+
+    // Verify we can retrieve each token individually
+    for (const createdToken of data) {
+      expect(createdToken).toBeDefined();
+      if (createdToken && !isErrorResponse(createdToken)) {
+        const getResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens/${createdToken.id}`);
+        expect(getResponse.status).toBe(200);
+        const retrievedToken = await getResponse.json() as MegadataTokenResponse;
+        if (!isErrorResponse(retrievedToken)) {
+          expect(retrievedToken.id).toBe(createdToken.id);
+          expect(retrievedToken.collection_id).toBe(testCollection.id);
+          expect(retrievedToken.data).toEqual(createdToken.data);
+        }
+      }
+    }
+  });
+
+  test("POST /megadata/collections/:id/tokens - should validate all tokens in batch", async () => {
+    const tokens = [
+      generateRandomToken(),
+      generateRandomToken({ invalid: "data" }), // Invalid token data
+      generateRandomToken()
+    ];
+    
+    const response = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(tokens),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    expect(response.status).toBe(400);
+    const error = await response.json();
+    expect(error).toHaveProperty('error');
   });
 
   test("GET /megadata/collections/:id/tokens/:token_id - should return token by id", async () => {
@@ -292,13 +365,18 @@ describe("Megadata Token Routes", () => {
     const token = generateRandomToken();
     const createResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
       method: 'POST',
-      body: JSON.stringify(token),
+      body: JSON.stringify([token]),
       headers: {
         'Content-Type': 'application/json'
       }
     });
-    const createdToken = await createResponse.json() as MegadataTokenResponse;
-    if (isErrorResponse(createdToken)) {
+    const createdTokens = await createResponse.json() as MegadataTokenResponse[];
+    if (isErrorResponse(createdTokens) || !Array.isArray(createdTokens) || createdTokens.length === 0) {
+      throw new Error("Failed to create test token");
+    }
+    const createdToken = createdTokens[0];
+    expect(createdToken).toBeDefined();
+    if (!createdToken || isErrorResponse(createdToken)) {
       throw new Error("Failed to create test token");
     }
 
@@ -318,14 +396,18 @@ describe("Megadata Token Routes", () => {
     const token = generateRandomToken();
     const createResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
       method: 'POST',
-      body: JSON.stringify(token),
+      body: JSON.stringify([token]),
       headers: {
         'Content-Type': 'application/json'
       }
     });
-    const createdToken = await createResponse.json() as MegadataTokenResponse;
-    console.log("createdToken", createdToken);
-    if (isErrorResponse(createdToken)) {
+    const createdTokens = await createResponse.json() as MegadataTokenResponse[];
+    if (isErrorResponse(createdTokens) || !Array.isArray(createdTokens) || createdTokens.length === 0) {
+      throw new Error("Failed to create test token");
+    }
+    const createdToken = createdTokens[0];
+    expect(createdToken).toBeDefined();
+    if (!createdToken || isErrorResponse(createdToken)) {
       throw new Error("Failed to create test token");
     }
 
@@ -358,13 +440,18 @@ describe("Megadata Token Routes", () => {
     const token = generateRandomToken();
     const createResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
       method: 'POST',
-      body: JSON.stringify(token),
+      body: JSON.stringify([token]),
       headers: {
         'Content-Type': 'application/json'
       }
     });
-    const createdToken = await createResponse.json() as MegadataTokenResponse;
-    if (isErrorResponse(createdToken)) {
+    const createdTokens = await createResponse.json() as MegadataTokenResponse[];
+    if (isErrorResponse(createdTokens) || !Array.isArray(createdTokens) || createdTokens.length === 0) {
+      throw new Error("Failed to create test token");
+    }
+    const createdToken = createdTokens[0];
+    expect(createdToken).toBeDefined();
+    if (!createdToken || isErrorResponse(createdToken)) {
       throw new Error("Failed to create test token");
     }
 
@@ -384,13 +471,18 @@ describe("Megadata Token Routes", () => {
     const token = generateRandomToken();
     const createResponse = await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
       method: 'POST',
-      body: JSON.stringify(token),
+      body: JSON.stringify([token]),
       headers: {
         'Content-Type': 'application/json'
       }
     });
-    const createdToken = await createResponse.json() as MegadataTokenResponse;
-    if (isErrorResponse(createdToken)) {
+    const createdTokens = await createResponse.json() as MegadataTokenResponse[];
+    if (isErrorResponse(createdTokens) || !Array.isArray(createdTokens) || createdTokens.length === 0) {
+      throw new Error("Failed to create test token");
+    }
+    const createdToken = createdTokens[0];
+    expect(createdToken).toBeDefined();
+    if (!createdToken || isErrorResponse(createdToken)) {
       throw new Error("Failed to create test token");
     }
 
@@ -415,5 +507,75 @@ describe("Megadata Token Routes", () => {
     if (!isErrorResponse(data)) {
       expect(data.is_published).toBe(true);
     }
+  });
+
+  test("GET /megadata/collections/:id/tokens - should return paginated tokens", async () => {
+    // Create 25 tokens
+    const tokens = Array.from({ length: 25 }, () => generateRandomToken());
+    await app.request(`/megadata/collections/${testCollection.id}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(tokens),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    // Test first page with default pagination
+    const response1 = await app.request(`/megadata/collections/${testCollection.id}/tokens`);
+    console.log(response1);
+    expect(response1.status).toBe(200);
+    const data1 = await response1.json() as { data: MegadataTokenResponse[], pagination: { total: number, page: number, limit: number, total_pages: number } };
+    expect(data1.data).toHaveLength(20); // Default limit
+    expect(data1.pagination).toEqual({
+      total: 25,
+      page: 1,
+      limit: 20,
+      total_pages: 2
+    });
+
+    // Test second page
+    const response2 = await app.request(`/megadata/collections/${testCollection.id}/tokens?page=2`);
+    console.log(response2);
+    expect(response2.status).toBe(200);
+    const data2 = await response2.json() as { data: MegadataTokenResponse[], pagination: { total: number, page: number, limit: number, total_pages: number } };
+    expect(data2.data).toHaveLength(5); // Remaining tokens
+    expect(data2.pagination).toEqual({
+      total: 25,
+      page: 2,
+      limit: 20,
+      total_pages: 2
+    });
+
+    // Test with custom limit
+    const response3 = await app.request(`/megadata/collections/${testCollection.id}/tokens?limit=10`);
+    expect(response3.status).toBe(200);
+    const data3 = await response3.json() as { data: MegadataTokenResponse[], pagination: { total: number, page: number, limit: number, total_pages: number } };
+    expect(data3.data).toHaveLength(10);
+    expect(data3.pagination).toEqual({
+      total: 25,
+      page: 1,
+      limit: 10,
+      total_pages: 3
+    });
+  });
+
+  test("GET /megadata/collections/:id/tokens - should validate pagination parameters", async () => {
+    // Test invalid page
+    const response1 = await app.request(`/megadata/collections/${testCollection.id}/tokens?page=0`);
+    expect(response1.status).toBe(400);
+    const error1 = await response1.json();
+    expect(error1).toHaveProperty('error');
+
+    // Test invalid limit
+    const response2 = await app.request(`/megadata/collections/${testCollection.id}/tokens?limit=0`);
+    expect(response2.status).toBe(400);
+    const error2 = await response2.json();
+    expect(error2).toHaveProperty('error');
+
+    // Test limit exceeding maximum
+    const response3 = await app.request(`/megadata/collections/${testCollection.id}/tokens?limit=101`);
+    expect(response3.status).toBe(400);
+    const error3 = await response3.json();
+    expect(error3).toHaveProperty('error');
   });
 }); 

@@ -50,13 +50,28 @@ const erc721Schema = {
   }
 };
 
+const extendingMetadataSchema = {
+  type: "object",
+  required: ["uri"],
+  properties: {
+    uri: { type: "string", description: "The URI of the metadata to extend" }
+  }
+};
+
 const seedModules = async () => {
   try {
+    // await db.insert(module).values({
+    //   id: "erc721",
+    //   name: "ERC721",
+    //   description: "Format for standard ERC721 structured metadata",
+    //   schema: erc721Schema
+    // });
+
     await db.insert(module).values({
-      id: "erc721",
-      name: "ERC721",
-      description: "Standard ERC721 metadata schema",
-      schema: erc721Schema
+      id: "extending_metadata",
+      name: "Extending Metadata",
+      description: "Enables the metadata of an existing URI to be extended",
+      schema: extendingMetadataSchema
     });
   } catch (error) {
     console.error("Error seeding modules:", error);

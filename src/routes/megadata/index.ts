@@ -132,7 +132,17 @@ app.openapi({ ...publishCollectionRoute, method: 'put', path: '/collections/{col
 
 app.openapi({ ...getCollectionTokensRoute, method: 'get', path: '/collections/{collection_id}/tokens'}, async (c) => {
   const id = Number(c.req.param('collection_id'));
-  const result = await MegadataService.getCollectionTokens(id);
+  const page = Number(c.req.query('page') || 1);
+  const limit = Number(c.req.query('limit') || 20);
+  console.log("page", page);
+  console.log("limit", limit);
+  // Validate pagination parameters
+  if (page < 1 || limit < 1 || limit > 100) {
+    c.status(400 as StatusCode);
+    return c.json({ error: "Invalid pagination parameters. Page must be >= 1 and limit must be between 1 and 100" }) as any;
+  }
+
+  const result = await MegadataService.getCollectionTokens(id, page, limit);
   
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);
@@ -144,11 +154,10 @@ app.openapi({ ...getCollectionTokensRoute, method: 'get', path: '/collections/{c
 
 app.openapi({ ...createTokenRoute, method: 'post', path: '/collections/{collection_id}/tokens'}, async (c) => {
   const id = Number(c.req.param('collection_id'));
-  console.log(`Creating token for collection ${id}`);
-  const body = await c.req.json();
+  console.log(`Creating tokens for collection ${id}`);
+  const tokens = await c.req.json();
 
   const collectionResult = await MegadataService.getCollectionById(id);
-  console.log("collectionResult", collectionResult);
   if (collectionResult.isErr()) {
     c.status(collectionResult.error.status as StatusCode);
     return c.json({ error: collectionResult.error.context }) as any;
@@ -162,24 +171,23 @@ app.openapi({ ...createTokenRoute, method: 'post', path: '/collections/{collecti
 
   // Get collection modules and validate data against each
   const modulesResult = await getCollectionModules(id);
-  console.log("modulesResult", modulesResult);
   if (modulesResult.isErr()) {
     c.status(400 as StatusCode);
     return c.json({ error: modulesResult.error.message }) as any;
   }
 
-  for (const { module } of modulesResult.value) {
-    console.log("module", module);
-    const validationResult = await validateTokenData(body.data, module.id);
-    console.log("validationResult", validationResult);
-    if (validationResult.isErr()) {
-      c.status(400 as StatusCode);
-      return c.json({ error: validationResult.error.message }) as any;
+  // Validate each token's data against all modules
+  for (const token of tokens) {
+    for (const { module } of modulesResult.value) {
+      const validationResult = await validateTokenData(token.data, module.id);
+      if (validationResult.isErr()) {
+        c.status(400 as StatusCode);
+        return c.json({ error: `Token ${token.id}: ${validationResult.error.message}` }) as any;
+      }
     }
   }
 
-  const tokenResult = await MegadataService.createToken(id, body);
-  console.log("tokenResult", tokenResult);
+  const tokenResult = await MegadataService.createTokens(id, tokens);
   if (tokenResult.isErr()) {
     c.status(tokenResult.error.status as StatusCode);
     return c.json({ error: tokenResult.error.context }) as any;

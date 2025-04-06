@@ -1,4 +1,4 @@
-import { pgTable, text, integer, jsonb, boolean, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, jsonb, boolean, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const account = pgTable("account", {
@@ -20,6 +20,7 @@ export const megadataCollection = pgTable("megadata_collection", {
 });
 
 export const megadataToken = pgTable("megadata_token", {
+  row_id: integer("row_id").primaryKey().generatedAlwaysAsIdentity(),
   id: text("id").notNull(),
   collection_id: integer("collection_id")
     .notNull()
@@ -29,7 +30,7 @@ export const megadataToken = pgTable("megadata_token", {
   created_at: integer("created_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
   updated_at: integer("updated_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
 }, (table) => [
-  primaryKey({ columns: [table.id, table.collection_id] }),
+  uniqueIndex("unique_token_id_collection_id").on(table.id, table.collection_id),
 ]);
 
 export const module = pgTable("module", {
