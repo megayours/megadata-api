@@ -115,7 +115,7 @@ export class MegadataService {
     );
   }
 
-  static async publishCollection(id: number, tokenIds: string[]): Promise<ResultAsync<boolean, Error>> {
+  static async publishCollection(id: number, tokenIds: string[], all: boolean): Promise<ResultAsync<boolean, Error>> {
     const collectionResult = await this.getCollectionById(id);
     if (collectionResult.isErr()) {
       return err(collectionResult.error);
@@ -143,6 +143,16 @@ export class MegadataService {
       if (publishCollectionResult.isErr()) {
         return err(publishCollectionResult.error);
       }
+    }
+
+    if (all) {
+      return ResultAsync.fromPromise<boolean, Error>(
+        db.update(megadataToken)
+          .set({ is_published: true })
+          .where(eq(megadataToken.collection_id, id))
+          .then(() => true),
+        (error) => handleDatabaseError(error)
+      );
     }
 
     const unPublishedTokens = await ResultAsync.fromPromise<MegadataToken[], Error>(
@@ -258,20 +268,6 @@ export class MegadataService {
       db.insert(megadataToken)
         .values(tokens.map(token => ({ ...token, collection_id: collectionId })))
         .returning(),
-      (error) => handleDatabaseError(error)
-    );
-  }
-
-  private static async createToken(collectionId: number, token: NewMegadataToken): Promise<ResultAsync<MegadataToken, Error>> {
-    return ResultAsync.fromPromise<MegadataToken, Error>(
-      db.insert(megadataToken)
-        .values({ ...token, collection_id: collectionId })
-        .returning()
-        .then(result => {
-          const record = result[0];
-          if (!record) throw new Error("Failed to create token");
-          return record;
-        }),
       (error) => handleDatabaseError(error)
     );
   }

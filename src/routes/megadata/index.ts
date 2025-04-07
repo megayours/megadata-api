@@ -118,9 +118,9 @@ app.openapi({ ...deleteCollectionRoute, method: 'delete', path: '/collections/{c
 app.openapi({ ...publishCollectionRoute, method: 'put', path: '/collections/{collection_id}/publish'}, async (c) => {
   const id = Number(c.req.param('collection_id'));
   console.log(`Publishing collection ${id}`);
-  const tokenIds = await c.req.json<string[]>();
+  const { token_ids, all } = await c.req.json();
 
-  const result = await MegadataService.publishCollection(id, tokenIds);
+  const result = await MegadataService.publishCollection(id, token_ids, all);
   
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);

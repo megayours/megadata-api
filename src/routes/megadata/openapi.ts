@@ -30,6 +30,11 @@ export const UpdateCollectionSchema = z.object({
   modules: z.array(z.string()).optional()
 });
 
+export const PublishCollectionSchema = z.object({
+  token_ids: z.array(z.string()),
+  all: z.boolean().optional().default(false)
+});
+
 export const getCollectionsRoute = {
   request: {
     query: z.object({
@@ -201,7 +206,7 @@ export const publishCollectionRoute = {
     body: {
       content: {
         'application/json': {
-          schema: z.array(z.string())
+          schema: PublishCollectionSchema
         }
       }
     }
