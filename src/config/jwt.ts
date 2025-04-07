@@ -1,6 +1,6 @@
 import * as jose from 'jose';
 import { ResultAsync } from 'neverthrow';
-import { SigningKey, getAddress, computeAddress } from 'ethers';
+import { ethers } from 'ethers';
 
 // Different JWKS endpoints for social logins and external wallets
 const SOCIAL_LOGIN_JWKS_URL = 'https://api-auth.web3auth.io/jwks';
@@ -99,10 +99,10 @@ function compressedPubKeyToAddress(compressedPubKey: string): string {
     : '0x' + compressedPubKey;
   
   // Convert compressed public key to an uncompressed public key
-  const publicKey = SigningKey.computePublicKey(prefixedKey, false);
+  const publicKey = ethers.SigningKey.computePublicKey(prefixedKey, false);
   
   // Calculate the address from the public key
-  const address = getAddress(computeAddress(publicKey));
+  const address = ethers.getAddress(ethers.computeAddress(publicKey));
   
   return address;
 }
