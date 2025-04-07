@@ -30,6 +30,11 @@ COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /usr/src/app/src src
 COPY --from=prerelease /usr/src/app/package.json .
 
+# Debug step to verify ethers installation
+RUN bun ls ethers && \
+    echo "Checking ethers installation..." && \
+    bun run -e "console.log(require('ethers'))"
+
 # run the app
 USER bun
 EXPOSE 3000/tcp
