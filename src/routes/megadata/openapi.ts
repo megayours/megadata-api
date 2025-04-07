@@ -1,13 +1,12 @@
-import { z } from "zod";
-import { 
-  CreateMegadataCollectionSchema, 
-  ErrorResponseSchema, 
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import {
+  CreateMegadataCollectionSchema,
+  CreateMegadataTokenSchema,
   MegadataCollectionResponseSchema,
-  UpdateMegadataTokenSchema,
   MegadataTokenResponseSchema,
-  SuccessResponseSchema,
-  CreateMegadataTokensSchema,
-} from "./types";
+  UpdateMegadataCollectionSchema,
+  UpdateMegadataTokenSchema
+} from './types';
 
 export const CollectionSchema = z.object({
   id: z.number(),
@@ -35,40 +34,38 @@ export const PublishCollectionSchema = z.object({
   all: z.boolean().optional().default(false)
 });
 
-export const getCollectionsRoute = {
-  request: {
-    query: z.object({
-      account_id: z.string()
-    })
-  },
-  tags: ['megadata'],
+// Get Collections
+export const getCollectionsRoute = createRoute({
+  method: 'get',
+  path: '/collections',
+  tags: ['Collections'],
+  summary: 'Get all collections',
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: MegadataCollectionResponseSchema.array()
+          schema: z.array(MegadataCollectionResponseSchema)
         }
       },
-      description: 'List of all collections'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
+      description: 'List of collections'
     }
   }
-}
+});
 
-export const createCollectionRoute = {
-  tags: ['megadata'],
+// Create Collection
+export const createCollectionRoute = createRoute({
+  method: 'post',
+  path: '/collections',
+  tags: ['Collections'],
+  summary: 'Create a new collection',
   request: {
     body: {
       content: {
         'application/json': {
-          schema: CreateMegadataCollectionSchema
+          schema: z.object({
+            name: z.string(),
+            modules: z.array(z.string())
+          })
         }
       }
     }
@@ -80,29 +77,22 @@ export const createCollectionRoute = {
           schema: MegadataCollectionResponseSchema
         }
       },
-      description: 'Collection created successfully'
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Invalid request'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
+      description: 'Created collection'
     }
   }
-};
+});
 
-export const getCollectionRoute = {
-  tags: ['megadata'],
+// Get Collection
+export const getCollectionRoute = createRoute({
+  method: 'get',
+  path: '/collections/{collection_id}',
+  tags: ['Collections'],
+  summary: 'Get a collection by ID',
+  request: {
+    params: z.object({
+      collection_id: z.string().transform(Number)
+    })
+  },
   responses: {
     200: {
       content: {
@@ -111,33 +101,24 @@ export const getCollectionRoute = {
         }
       },
       description: 'Collection details'
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Collection not found'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
     }
   }
-};
+});
 
-export const updateCollectionRoute = {
-  tags: ['megadata'],
+// Update Collection
+export const updateCollectionRoute = createRoute({
+  method: 'put',
+  path: '/collections/{collection_id}',
+  tags: ['Collections'],
+  summary: 'Update a collection',
   request: {
+    params: z.object({
+      collection_id: z.string().transform(Number)
+    }),
     body: {
       content: {
         'application/json': {
-          schema: UpdateCollectionSchema
+          schema: UpdateMegadataCollectionSchema
         }
       }
     }
@@ -149,64 +130,53 @@ export const updateCollectionRoute = {
           schema: MegadataCollectionResponseSchema
         }
       },
-      description: 'Collection updated successfully'
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Collection not found'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
+      description: 'Updated collection'
     }
   }
-};
+});
 
-export const deleteCollectionRoute = {
-  tags: ['megadata'],
+// Delete Collection
+export const deleteCollectionRoute = createRoute({
+  method: 'delete',
+  path: '/collections/{collection_id}',
+  tags: ['Collections'],
+  summary: 'Delete a collection',
+  request: {
+    params: z.object({
+      collection_id: z.string().transform(Number)
+    })
+  },
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: z.object({
+            success: z.boolean()
+          })
         }
       },
-      description: 'Collection deleted successfully'
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Collection not found'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
+      description: 'Collection deleted'
     }
   }
-};
+});
 
-export const publishCollectionRoute = {
-  tags: ['megadata'],
+// Publish Collection
+export const publishCollectionRoute = createRoute({
+  method: 'put',
+  path: '/collections/{collection_id}/publish',
+  tags: ['Collections'],
+  summary: 'Publish a collection',
   request: {
+    params: z.object({
+      collection_id: z.string().transform(Number)
+    }),
     body: {
       content: {
         'application/json': {
-          schema: PublishCollectionSchema
+          schema: z.object({
+            token_ids: z.array(z.string()).optional(),
+            all: z.boolean().optional()
+          })
         }
       }
     }
@@ -215,36 +185,29 @@ export const publishCollectionRoute = {
     200: {
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: z.object({
+            success: z.boolean()
+          })
         }
       },
-      description: 'Collection published successfully'
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Collection not found'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
+      description: 'Collection published'
     }
   }
-};
+});
 
-export const getCollectionTokensRoute = {
-  tags: ['megadata'],
+// Get Collection Tokens
+export const getCollectionTokensRoute = createRoute({
+  method: 'get',
+  path: '/collections/{collection_id}/tokens',
+  tags: ['Tokens'],
+  summary: 'Get tokens in a collection',
   request: {
+    params: z.object({
+      collection_id: z.string().transform(Number)
+    }),
     query: z.object({
-      page: z.string().optional().default("1"),
-      limit: z.string().optional().default("20")
+      page: z.string().transform(Number).optional(),
+      limit: z.string().transform(Number).optional()
     })
   },
   responses: {
@@ -252,44 +215,32 @@ export const getCollectionTokensRoute = {
       content: {
         'application/json': {
           schema: z.object({
-            data: MegadataTokenResponseSchema.array(),
-            pagination: z.object({
-              total: z.number(),
-              page: z.number(),
-              limit: z.number(),
-              total_pages: z.number()
-            })
+            tokens: z.array(MegadataTokenResponseSchema),
+            total: z.number(),
+            page: z.number(),
+            limit: z.number()
           })
         }
       },
-      description: 'List of tokens in the collection with pagination info'
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Collection not found'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
+      description: 'List of tokens'
     }
   }
-};
+});
 
-export const createTokenRoute = {
-  tags: ['megadata'],
+// Create Token
+export const createTokenRoute = createRoute({
+  method: 'post',
+  path: '/collections/{collection_id}/tokens',
+  tags: ['Tokens'],
+  summary: 'Create tokens in a collection',
   request: {
+    params: z.object({
+      collection_id: z.string().transform(Number)
+    }),
     body: {
       content: {
         'application/json': {
-          schema: CreateMegadataTokensSchema
+          schema: z.array(CreateMegadataTokenSchema)
         }
       }
     }
@@ -298,40 +249,26 @@ export const createTokenRoute = {
     201: {
       content: {
         'application/json': {
-          schema: MegadataTokenResponseSchema.array()
+          schema: z.array(MegadataTokenResponseSchema)
         }
       },
-      description: 'Tokens created successfully'
-    },
-    400: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Invalid request'
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Collection not found'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
+      description: 'Created tokens'
     }
   }
-};
+});
 
-export const getTokenRoute = {
-  tags: ['megadata'],
+// Get Token
+export const getTokenRoute = createRoute({
+  method: 'get',
+  path: '/collections/{collection_id}/tokens/{token_id}',
+  tags: ['Tokens'],
+  summary: 'Get a token by ID',
+  request: {
+    params: z.object({
+      collection_id: z.string().transform(Number),
+      token_id: z.string()
+    })
+  },
   responses: {
     200: {
       content: {
@@ -340,29 +277,21 @@ export const getTokenRoute = {
         }
       },
       description: 'Token details'
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Token not found'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
     }
   }
-};
+});
 
-export const updateTokenRoute = {
-  tags: ['megadata'],
+// Update Token
+export const updateTokenRoute = createRoute({
+  method: 'put',
+  path: '/collections/{collection_id}/tokens/{token_id}',
+  tags: ['Tokens'],
+  summary: 'Update a token',
   request: {
+    params: z.object({
+      collection_id: z.string().transform(Number),
+      token_id: z.string()
+    }),
     body: {
       content: {
         'application/json': {
@@ -378,53 +307,33 @@ export const updateTokenRoute = {
           schema: MegadataTokenResponseSchema
         }
       },
-      description: 'Token updated successfully'
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Token not found'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
+      description: 'Updated token'
     }
   }
-};
+});
 
-export const deleteTokenRoute = {
-  tags: ['megadata'],
+// Delete Token
+export const deleteTokenRoute = createRoute({
+  method: 'delete',
+  path: '/collections/{collection_id}/tokens/{token_id}',
+  tags: ['Tokens'],
+  summary: 'Delete a token',
+  request: {
+    params: z.object({
+      collection_id: z.string().transform(Number),
+      token_id: z.string()
+    })
+  },
   responses: {
     200: {
       content: {
         'application/json': {
-          schema: SuccessResponseSchema
+          schema: z.object({
+            success: z.boolean()
+          })
         }
       },
-      description: 'Token deleted successfully'
-    },
-    404: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Token not found'
-    },
-    500: {
-      content: {
-        'application/json': {
-          schema: ErrorResponseSchema
-        }
-      },
-      description: 'Internal server error'
+      description: 'Token deleted'
     }
   }
-};
+});

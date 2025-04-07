@@ -6,12 +6,21 @@ import { megadataRoutes } from './routes/megadata';
 import { accountRoutes } from './routes/account';
 import { moduleRoutes } from './routes/module';
 import { megahubRoutes } from './routes/megahub';
+import { authMiddleware } from './middleware/auth';
 
 export function createApp() {
   const app = new OpenAPIHono();
 
   // Middleware
   app.use('*', cors());
+  
+  // Apply auth middleware to all routes except docs
+  app.use('*', async (c, next) => {
+    if (c.req.path.startsWith('/docs')) {
+      return next();
+    }
+    return authMiddleware(c, next);
+  });
 
   // Routes
   app.route('/megadata', megadataRoutes);

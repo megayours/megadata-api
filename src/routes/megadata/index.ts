@@ -21,13 +21,13 @@ const app = new OpenAPIHono();
 
 // Route Handlers
 app.openapi({ ...getCollectionsRoute, method: 'get', path: '/collections'}, async (c) => {
-  const account_id = c.req.query('account_id');
-  if (!account_id) {
-    c.status(400 as StatusCode);
-    return c.json({ error: "Account ID is required" }) as any;
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
   }
   
-  const result = await MegadataService.getAllCollections(account_id);
+  const result = await MegadataService.getAllCollections(walletAddress);
   
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);
@@ -38,16 +38,22 @@ app.openapi({ ...getCollectionsRoute, method: 'get', path: '/collections'}, asyn
 });
 
 app.openapi({ ...createCollectionRoute, method: 'post', path: '/collections'}, async (c) => {
-  const body = await c.req.json();
-  const { name, account_id, modules } = body;
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
+  }
 
-  const accountResult = await AccountService.ensureAccount(account_id);
+  const body = await c.req.json();
+  const { name, modules } = body;
+
+  const accountResult = await AccountService.ensureAccount(walletAddress);
   if (accountResult.isErr()) {
     c.status(accountResult.error.status as StatusCode);
     return c.json({ error: accountResult.error.context }) as any;
   }
 
-  const collectionResult = await MegadataService.createCollection({ name, account_id, modules });
+  const collectionResult = await MegadataService.createCollection({ name, account_id: walletAddress, modules });
   if (collectionResult.isErr()) {
     c.status(collectionResult.error.status as StatusCode);
     return c.json({ error: collectionResult.error.context }) as any;
@@ -58,6 +64,12 @@ app.openapi({ ...createCollectionRoute, method: 'post', path: '/collections'}, a
 });
 
 app.openapi({ ...getCollectionRoute, method: 'get', path: '/collections/{collection_id}'}, async (c) => {
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
+  }
+
   const id = Number(c.req.param('collection_id'));
   const result = await MegadataService.getCollectionById(id);
   
@@ -71,57 +83,124 @@ app.openapi({ ...getCollectionRoute, method: 'get', path: '/collections/{collect
     c.status(404 as StatusCode);
     return c.json({ error: "Collection not found" }) as any;
   }
+
+  // Verify the collection belongs to the authenticated user
+  if (collection.account_id !== walletAddress) {
+    c.status(403 as StatusCode);
+    return c.json({ error: "Forbidden" }) as any;
+  }
   
   return c.json(collection);
 });
 
 app.openapi({ ...updateCollectionRoute, method: 'put', path: '/collections/{collection_id}'}, async (c) => {
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
+  }
+
   const id = Number(c.req.param('collection_id'));
-  console.log(`Updating collection ${id}`);
   const { name, modules } = await c.req.json();
 
+  // Verify the collection belongs to the authenticated user
+  const collectionResult = await MegadataService.getCollectionById(id);
+  if (collectionResult.isErr()) {
+    c.status(collectionResult.error.status as StatusCode);
+    return c.json({ error: collectionResult.error.context }) as any;
+  }
+
+  const collection = collectionResult.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+
+  if (collection.account_id !== walletAddress) {
+    c.status(403 as StatusCode);
+    return c.json({ error: "Forbidden" }) as any;
+  }
+
   const result = await MegadataService.updateCollection(id, name, modules);
-  console.log("result", result);
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);
     return c.json({ error: result.error.context }) as any;
   }
   
-  const collection = result.value;
-  if (!collection) {
+  const updatedCollection = result.value;
+  if (!updatedCollection) {
     c.status(404 as StatusCode);
     return c.json({ error: "Collection not found" }) as any;
   }
   
-  return c.json(collection);
+  return c.json(updatedCollection);
 });
 
 app.openapi({ ...deleteCollectionRoute, method: 'delete', path: '/collections/{collection_id}'}, async (c) => {
-  const id = Number(c.req.param('collection_id'));
-  console.log(`Deleting collection ${id}`);
-  const result = await MegadataService.deleteCollection(id);
-  console.log(result);
-  if (result.isErr()) {
-    c.status(result.error.status as StatusCode);
-    return c.json({ error: result.error.context }) as any;
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
   }
-  
-  const collection = result.value;
+
+  const id = Number(c.req.param('collection_id'));
+
+  // Verify the collection belongs to the authenticated user
+  const collectionResult = await MegadataService.getCollectionById(id);
+  if (collectionResult.isErr()) {
+    c.status(collectionResult.error.status as StatusCode);
+    return c.json({ error: collectionResult.error.context }) as any;
+  }
+
+  const collection = collectionResult.value;
   if (!collection) {
     c.status(404 as StatusCode);
     return c.json({ error: "Collection not found" }) as any;
+  }
+
+  if (collection.account_id !== walletAddress) {
+    c.status(403 as StatusCode);
+    return c.json({ error: "Forbidden" }) as any;
+  }
+
+  const result = await MegadataService.deleteCollection(id);
+  if (result.isErr()) {
+    c.status(result.error.status as StatusCode);
+    return c.json({ error: result.error.context }) as any;
   }
   
   return c.json({ success: true });
 });
 
 app.openapi({ ...publishCollectionRoute, method: 'put', path: '/collections/{collection_id}/publish'}, async (c) => {
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
+  }
+
   const id = Number(c.req.param('collection_id'));
-  console.log(`Publishing collection ${id}`);
   const { token_ids, all } = await c.req.json();
 
+  // Verify the collection belongs to the authenticated user
+  const collectionResult = await MegadataService.getCollectionById(id);
+  if (collectionResult.isErr()) {
+    c.status(collectionResult.error.status as StatusCode);
+    return c.json({ error: collectionResult.error.context }) as any;
+  }
+
+  const collection = collectionResult.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+
+  if (collection.account_id !== walletAddress) {
+    c.status(403 as StatusCode);
+    return c.json({ error: "Forbidden" }) as any;
+  }
+
   const result = await MegadataService.publishCollection(id, token_ids, all);
-  
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);
     return c.json({ error: result.error.context }) as any;
@@ -131,19 +210,35 @@ app.openapi({ ...publishCollectionRoute, method: 'put', path: '/collections/{col
 });
 
 app.openapi({ ...getCollectionTokensRoute, method: 'get', path: '/collections/{collection_id}/tokens'}, async (c) => {
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
+  }
+
   const id = Number(c.req.param('collection_id'));
   const page = Number(c.req.query('page') || 1);
   const limit = Number(c.req.query('limit') || 20);
-  console.log("page", page);
-  console.log("limit", limit);
-  // Validate pagination parameters
-  if (page < 1 || limit < 1 || limit > 100) {
-    c.status(400 as StatusCode);
-    return c.json({ error: "Invalid pagination parameters. Page must be >= 1 and limit must be between 1 and 100" }) as any;
+
+  // Verify the collection belongs to the authenticated user
+  const collectionResult = await MegadataService.getCollectionById(id);
+  if (collectionResult.isErr()) {
+    c.status(collectionResult.error.status as StatusCode);
+    return c.json({ error: collectionResult.error.context }) as any;
+  }
+
+  const collection = collectionResult.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+
+  if (collection.account_id !== walletAddress) {
+    c.status(403 as StatusCode);
+    return c.json({ error: "Forbidden" }) as any;
   }
 
   const result = await MegadataService.getCollectionTokens(id, page, limit);
-  
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);
     return c.json({ error: result.error.context }) as any;
@@ -153,20 +248,31 @@ app.openapi({ ...getCollectionTokensRoute, method: 'get', path: '/collections/{c
 });
 
 app.openapi({ ...createTokenRoute, method: 'post', path: '/collections/{collection_id}/tokens'}, async (c) => {
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
+  }
+
   const id = Number(c.req.param('collection_id'));
-  console.log(`Creating tokens for collection ${id}`);
   const tokens = await c.req.json();
 
+  // Verify the collection belongs to the authenticated user
   const collectionResult = await MegadataService.getCollectionById(id);
   if (collectionResult.isErr()) {
     c.status(collectionResult.error.status as StatusCode);
     return c.json({ error: collectionResult.error.context }) as any;
   }
-  
+
   const collection = collectionResult.value;
   if (!collection) {
     c.status(404 as StatusCode);
     return c.json({ error: "Collection not found" }) as any;
+  }
+
+  if (collection.account_id !== walletAddress) {
+    c.status(403 as StatusCode);
+    return c.json({ error: "Forbidden" }) as any;
   }
 
   // Get collection modules and validate data against each
@@ -198,11 +304,34 @@ app.openapi({ ...createTokenRoute, method: 'post', path: '/collections/{collecti
 });
 
 app.openapi({ ...getTokenRoute, method: 'get', path: '/collections/{collection_id}/tokens/{token_id}'}, async (c) => {
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
+  }
+
   const collectionId = Number(c.req.param('collection_id')!);
   const tokenId = c.req.param('token_id')!;
+
+  // Verify the collection belongs to the authenticated user
+  const collectionResult = await MegadataService.getCollectionById(collectionId);
+  if (collectionResult.isErr()) {
+    c.status(collectionResult.error.status as StatusCode);
+    return c.json({ error: collectionResult.error.context }) as any;
+  }
+
+  const collection = collectionResult.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+
+  if (collection.account_id !== walletAddress) {
+    c.status(403 as StatusCode);
+    return c.json({ error: "Forbidden" }) as any;
+  }
   
   const result = await MegadataService.getTokenById(collectionId, tokenId);
-  
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);
     return c.json({ error: result.error.context }) as any;
@@ -218,10 +347,33 @@ app.openapi({ ...getTokenRoute, method: 'get', path: '/collections/{collection_i
 });
 
 app.openapi({ ...updateTokenRoute, method: 'put', path: '/collections/{collection_id}/tokens/{token_id}'}, async (c) => {
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
+  }
+
   const collectionId = Number(c.req.param('collection_id')!);
   const tokenId = c.req.param('token_id')!;
-  console.log(`Updating token ${tokenId} for collection ${collectionId}`);
   const { data } = await c.req.json();
+
+  // Verify the collection belongs to the authenticated user
+  const collectionResult = await MegadataService.getCollectionById(collectionId);
+  if (collectionResult.isErr()) {
+    c.status(collectionResult.error.status as StatusCode);
+    return c.json({ error: collectionResult.error.context }) as any;
+  }
+
+  const collection = collectionResult.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+
+  if (collection.account_id !== walletAddress) {
+    c.status(403 as StatusCode);
+    return c.json({ error: "Forbidden" }) as any;
+  }
 
   // Get collection modules and validate data against each
   const modulesResult = await getCollectionModules(collectionId);
@@ -239,7 +391,6 @@ app.openapi({ ...updateTokenRoute, method: 'put', path: '/collections/{collectio
   }
 
   const result = await MegadataService.updateToken(collectionId, tokenId, data);
-  
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);
     return c.json({ error: result.error.context }) as any;
@@ -250,25 +401,42 @@ app.openapi({ ...updateTokenRoute, method: 'put', path: '/collections/{collectio
     c.status(404 as StatusCode);
     return c.json({ error: "Token not found" }) as any;
   }
-
+  
   return c.json(token);
 });
 
 app.openapi({ ...deleteTokenRoute, method: 'delete', path: '/collections/{collection_id}/tokens/{token_id}'}, async (c) => {
+  const walletAddress = c.get('walletAddress');
+  if (!walletAddress) {
+    c.status(401 as StatusCode);
+    return c.json({ error: "Unauthorized" }) as any;
+  }
+
   const collectionId = Number(c.req.param('collection_id')!);
   const tokenId = c.req.param('token_id')!;
+
+  // Verify the collection belongs to the authenticated user
+  const collectionResult = await MegadataService.getCollectionById(collectionId);
+  if (collectionResult.isErr()) {
+    c.status(collectionResult.error.status as StatusCode);
+    return c.json({ error: collectionResult.error.context }) as any;
+  }
+
+  const collection = collectionResult.value;
+  if (!collection) {
+    c.status(404 as StatusCode);
+    return c.json({ error: "Collection not found" }) as any;
+  }
+
+  if (collection.account_id !== walletAddress) {
+    c.status(403 as StatusCode);
+    return c.json({ error: "Forbidden" }) as any;
+  }
   
   const result = await MegadataService.deleteToken(collectionId, tokenId);
-  
   if (result.isErr()) {
     c.status(result.error.status as StatusCode);
     return c.json({ error: result.error.context }) as any;
-  }
-  
-  const token = result.value;
-  if (!token) {
-    c.status(404 as StatusCode);
-    return c.json({ error: "Token not found" }) as any;
   }
   
   return c.json({ success: true });
