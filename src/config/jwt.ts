@@ -99,7 +99,8 @@ function compressedPubKeyToAddress(compressedPubKey: string): string {
     : '0x' + compressedPubKey;
   
   // Convert compressed public key to an uncompressed public key
-  const publicKey = ethers.SigningKey.computePublicKey(prefixedKey, false);
+  const signingKey = new ethers.SigningKey(prefixedKey);
+  const publicKey = signingKey.publicKey;
   
   // Calculate the address from the public key
   const address = ethers.getAddress(ethers.computeAddress(publicKey));
