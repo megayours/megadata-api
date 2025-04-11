@@ -1,11 +1,12 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
 import {
-  CreateMegadataCollectionSchema,
   CreateMegadataTokenSchema,
   MegadataCollectionResponseSchema,
   MegadataTokenResponseSchema,
   UpdateMegadataCollectionSchema,
-  UpdateMegadataTokenSchema
+  UpdateMegadataTokenSchema,
+  ExternalCollectionResponseSchema,
+  CreateExternalCollectionSchema
 } from './types';
 
 export const CollectionSchema = z.object({
@@ -40,6 +41,11 @@ export const getCollectionsRoute = createRoute({
   path: '/collections',
   tags: ['Collections'],
   summary: 'Get all collections',
+  request: {
+    query: z.object({
+      type: z.string().optional()
+    })
+  },
   responses: {
     200: {
       content: {
@@ -63,8 +69,7 @@ export const createCollectionRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            name: z.string(),
-            modules: z.array(z.string())
+            name: z.string()
           })
         }
       }
@@ -334,6 +339,82 @@ export const deleteTokenRoute = createRoute({
         }
       },
       description: 'Token deleted'
+    }
+  }
+});
+
+// Validate Token Permissions
+export const validateTokenPermissionsRoute = createRoute({
+  method: 'get',
+  path: '/collections/{collection_id}/tokens/{token_id}/validate',
+  tags: ['Tokens'],
+  summary: 'Validate token modification permissions',
+  request: {
+    params: z.object({
+      collection_id: z.string().transform(Number),
+      token_id: z.string()
+    })
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            isValid: z.boolean(),
+            error: z.string().optional()
+          })
+        }
+      },
+      description: 'Token permission validation result'
+    },
+    401: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            error: z.string()
+          })
+        }
+      },
+      description: 'Unauthorized'
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            error: z.string()
+          })
+        }
+      },
+      description: 'Token not found'
+    }
+  }
+});
+
+// **** External Collections ****
+
+// Create External Collection
+export const createExternalCollectionRoute = createRoute({
+  method: 'post',
+  path: '/external-collections',
+  tags: ['External Collections'],
+  summary: 'Create a new external collection',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: CreateExternalCollectionSchema
+        }
+      }
+    }
+  },
+  responses: {
+    201: {
+      content: {
+        'application/json': {
+          schema: ExternalCollectionResponseSchema
+        }
+      },
+      description: 'Created external collection'
     }
   }
 });

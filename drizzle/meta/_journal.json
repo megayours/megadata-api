@@ -3,17 +3,10 @@
   "dialect": "postgresql",
   "entries": [
     {
-      "idx": 1,
+      "idx": 0,
       "version": "7",
-      "when": 1743926497603,
-      "tag": "0001_amusing_gambit",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1743926500000,
-      "tag": "0002_fix_identity_sequence",
+      "when": 1744369147461,
+      "tag": "0000_unusual_reptil",
       "breakpoints": true
     }
   ]

@@ -1,3 +1,4 @@
+import { SPECIAL_MODULES } from "../utils/constants";
 import { db } from "./index";
 import { module } from "./schema";
 
@@ -58,6 +59,15 @@ const extendingMetadataSchema = {
   }
 };
 
+const extendingCollectionSchema = {
+  type: "object",
+  required: ["source", "id"],
+  properties: {
+    source: { type: "string", description: "The source of the collection, e.g. a blockchain like Ethereum" },
+    id: { type: "string", description: "The ID of the collection on the source, e.g. the contract address" }
+  }
+}
+
 const seedModules = async () => {
   try {
     // await db.insert(module).values({
@@ -67,11 +77,18 @@ const seedModules = async () => {
     //   schema: erc721Schema
     // });
 
+    // await db.insert(module).values({
+    //   id: "extending_metadata",
+    //   name: "Extending Metadata",
+    //   description: "Enables the metadata of an existing URI to be extended",
+    //   schema: extendingMetadataSchema
+    // });
+
     await db.insert(module).values({
-      id: "extending_metadata",
-      name: "Extending Metadata",
-      description: "Enables the metadata of an existing URI to be extended",
-      schema: extendingMetadataSchema
+      id: SPECIAL_MODULES.EXTENDING_COLLECTION,
+      name: "Extending Collection",
+      description: "Enables the metadata of an existing collection to be extended",
+      schema: extendingCollectionSchema
     });
   } catch (error) {
     console.error("Error seeding modules:", error);

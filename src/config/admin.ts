@@ -1,0 +1,1 @@
+export const ADMIN_LIST = process.env.ADMIN_LIST?.split(',') || [];

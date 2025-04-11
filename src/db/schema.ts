@@ -15,6 +15,7 @@ export const megadataCollection = pgTable("megadata_collection", {
     .notNull()
     .references(() => account.id),
   is_published: boolean("is_published").notNull().default(false),
+  type: text("type").notNull().default('default'),
   created_at: integer("created_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
   updated_at: integer("updated_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
 });
@@ -42,14 +43,30 @@ export const module = pgTable("module", {
   updated_at: integer("updated_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
 });
 
-export const collectionModule = pgTable("collection_module", {
+export const tokenModule = pgTable("token_module", {
   id: text("id").primaryKey(),
-  collection_id: integer("collection_id")
+  token_row_id: integer("token_row_id")
     .notNull()
-    .references(() => megadataCollection.id, { onDelete: 'cascade' }),
+    .references(() => megadataToken.row_id, { onDelete: 'cascade' }),
   module_id: text("module_id")
     .notNull()
     .references(() => module.id),
   created_at: integer("created_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
   updated_at: integer("updated_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
-});
+}, (table) => [
+  uniqueIndex("unique_token_module").on(table.token_row_id, table.module_id),
+]);
+
+export const externalCollection = pgTable("external_collection", {
+  collection_id: integer("collection_id")
+    .primaryKey()
+    .references(() => megadataCollection.id, { onDelete: 'cascade' }),
+  source: text("source").notNull(),
+  id: text("id").notNull(),
+  type: text("type").notNull(),
+  last_checked: integer("last_checked"),
+  created_at: integer("created_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
+  updated_at: integer("updated_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
+}, (table) => [
+  uniqueIndex("unique_external_collection").on(table.source, table.id, table.type),
+]);

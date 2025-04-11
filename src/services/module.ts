@@ -1,13 +1,13 @@
 import { db } from "../db";
-import { module, collectionModule } from "../db/schema";
-import { eq } from "drizzle-orm";
-import { ResultAsync, err } from "neverthrow";
-import { ApiError, DatabaseError, ValidationError } from "../utils/errors";
-import { validateDataAgainstSchema } from "../utils/schema";
+import { megadataToken, module, tokenModule } from "../db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { ResultAsync } from "neverthrow";
+import { ApiError, DatabaseError } from "../utils/errors";
 
-export const getModules = () => {
+export const getModules = (ids?: string[]) => {
+  console.log("Filtering modules", ids);
   return ResultAsync.fromPromise(
-    db.select().from(module),
+    db.select().from(module).where(ids ? inArray(module.id, ids) : sql`1 = 1`),
     (error) => new DatabaseError("Failed to fetch modules", error as ApiError)
   );
 };
@@ -19,35 +19,17 @@ export const getModuleById = (id: string) => {
   );
 };
 
-export const getCollectionModules = (collectionId: number) => {
+export const getTokenModules = (collectionId: number, tokenId: string) => {
   return ResultAsync.fromPromise(
     db
       .select()
-      .from(collectionModule)
-      .innerJoin(module, eq(collectionModule.module_id, module.id))
-      .where(eq(collectionModule.collection_id, collectionId)),
+      .from(tokenModule)
+      .innerJoin(module, eq(tokenModule.module_id, module.id))
+      .innerJoin(megadataToken, eq(tokenModule.token_row_id, megadataToken.row_id))
+      .where(and(
+        eq(megadataToken.collection_id, collectionId),
+        eq(megadataToken.id, tokenId)
+      )),
     (error) => new DatabaseError("Failed to fetch collection modules", error as ApiError)
   );
 };
-
-export const validateTokenData = (data: unknown, moduleId: string) => {
-  return ResultAsync.fromPromise(
-    db.select().from(module).where(eq(module.id, moduleId)),
-    (error) => new DatabaseError("Failed to fetch module", error as ApiError)
-  ).andThen((modules) => {
-    if (modules.length === 0) {
-      return ResultAsync.fromPromise(
-        Promise.resolve(err(new DatabaseError("Module not found"))),
-        (error) => new DatabaseError("Failed to validate data", error as ApiError)
-      );
-    }
-    const moduleSchema = modules[0]?.schema;
-    if (!moduleSchema) {
-      return ResultAsync.fromPromise(
-        Promise.resolve(err(new DatabaseError("Module schema not found"))),
-        (error) => new ValidationError("Failed to validate data", error as ApiError)
-      );
-    }
-    return validateDataAgainstSchema(data, moduleSchema).map(() => true);
-  });
-}; 

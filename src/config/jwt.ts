@@ -48,7 +48,6 @@ export const verifyToken = (token: string, appPubKey: string | undefined): Resul
     (async () => {
       try {
         if (appPubKey) {
-          console.log('appPubKey', appPubKey);
           // Social login
           const jwks = socialLoginJWKS;
           const jwtDecoded = await jose.jwtVerify(token, jwks, { algorithms: ["ES256"] });
