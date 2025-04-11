@@ -13,7 +13,7 @@ import cron from 'node-cron';
 import { formatData } from "../utils/data-formatter";
 import { SPECIAL_MODULES } from "../utils/constants";
 
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Check once a day
+const CHECK_INTERVAL_MS = 60 * 60 * 1000; // Check once per hour
 const BATCH_SIZE = 10; // Process N collections per run to avoid overwhelming resources
 const TOKEN_BATCH_SIZE = 10; // Create/publish tokens in batches
 

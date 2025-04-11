@@ -18,7 +18,7 @@ export class RpcService {
     if (!this.provider) {
       const rpcUrl = getRandomRpcUrl(source);
       if (rpcUrl.isErr()) {
-        throw new Error("ETH_RPC_URL environment variable is not set");
+        throw new Error("No Ethereum RPC URL found");
       }
       this.provider = new ethers.JsonRpcProvider(rpcUrl.value);
     }
