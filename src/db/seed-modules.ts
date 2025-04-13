@@ -98,7 +98,8 @@ const seedModules = async () => {
 
 seedModules().then(() => {
   console.log("Successfully seeded modules");
+  process.exit(0);
 }).catch((error) => {
   console.error("Error seeding modules:", error);
-  throw error;
+  process.exit(1);
 }); 
