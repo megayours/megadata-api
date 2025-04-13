@@ -5,7 +5,7 @@ import path from "path";
 
 const envFile = () => {
   if (process.env.NODE_ENV === "test") {
-    return ".env.local";
+    return ".env.test";
   } else if (process.env.NODE_ENV === "development") {
     return ".env.local";
   }
