@@ -32,7 +32,13 @@ const EnvSchema = z.object({
     },
     { message: "ETHEREUM_RPC_URLS must be a comma-separated list of URLs" }
   ),
-  ABSTRACTION_CHAIN_URL: z.string().url(),
+  ABSTRACTION_CHAIN_URL: z.string().refine(
+    (val) => {
+      const list = val.split(",");
+      return list.every((item) => item.trim() !== "");
+    },
+    { message: "ABSTRACTION_CHAIN_URL must be a comma-separated list of URLs" }
+  ),
   ABSTRACTION_CHAIN_RID: z.string(),
   ABSTRACTION_CHAIN_PRIVATE_KEY: z.string(),
   NEXT_PUBLIC_MEGADATA_API_URI: z.string().url(),
