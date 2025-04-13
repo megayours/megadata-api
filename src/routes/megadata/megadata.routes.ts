@@ -1,8 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import * as HTTP_STATUS_CODES from "@/lib/http-status-codes";
-import { insertCollectionsSchema } from "@/db/schema";
+import { insertCollectionsSchema, selectCollectionsSchema, selectExternalCollectionSchema } from "@/db/schema";
 import { 
-  MegadataCollectionResponseSchema, 
   MegadataTokenResponseSchema, 
   CreateMegadataTokenSchema, 
   UpdateMegadataTokenSchema
@@ -23,7 +22,7 @@ export const getCollections = createRoute({
     [HTTP_STATUS_CODES.OK]: {
       content: {
         'application/json': {
-          schema: z.array(MegadataCollectionResponseSchema)
+          schema: z.array(selectCollectionsSchema)
         }
       },
       description: 'List of collections'
@@ -46,7 +45,7 @@ export const getCollection = createRoute({
     [HTTP_STATUS_CODES.OK]: {
       content: {
         'application/json': {
-          schema: MegadataCollectionResponseSchema
+          schema: selectCollectionsSchema
         }
       },
       description: 'Collection details'
@@ -83,7 +82,7 @@ export const createCollection = createRoute({
     [HTTP_STATUS_CODES.CREATED]: {
       content: {
         'application/json': {
-          schema: MegadataCollectionResponseSchema
+          schema: selectCollectionsSchema
         }
       },
       description: 'Created collection'
@@ -114,7 +113,7 @@ export const createExternalCollection = createRoute({
     [HTTP_STATUS_CODES.OK]: {
       content: {
         'application/json': {
-          schema: MegadataCollectionResponseSchema
+          schema: selectCollectionsSchema
         }
       },
       description: 'External collection already exists'
@@ -122,11 +121,35 @@ export const createExternalCollection = createRoute({
     [HTTP_STATUS_CODES.CREATED]: {
       content: {
         'application/json': {
-          schema: MegadataCollectionResponseSchema
+          schema: selectCollectionsSchema
         }
       },
       description: 'Created external collection'
     },
+    [HTTP_STATUS_CODES.UNAUTHORIZED]: error('Unauthorized')
+  }
+});
+
+export const getExternalCollection = createRoute({
+  method: 'get',
+  path: '/external-collections/{collection_id}',
+  tags: ['Collections'],
+  summary: 'Get an external collection by ID',
+  request: {
+    params: z.object({
+      collection_id: z.string().transform(Number)
+    })
+  },
+  responses: {
+    [HTTP_STATUS_CODES.OK]: {
+      content: {
+        'application/json': {
+          schema: selectExternalCollectionSchema
+        }
+      },
+      description: 'External collection details'
+    },
+    [HTTP_STATUS_CODES.NOT_FOUND]: error('External collection not found'),
     [HTTP_STATUS_CODES.UNAUTHORIZED]: error('Unauthorized')
   }
 });
@@ -177,16 +200,8 @@ export const getCollectionTokens = createRoute({
       collection_id: z.string().transform(Number)
     }),
     query: z.object({
-      page: z.string()
-        .transform(Number)
-        .refine((val) => val > 0, { message: "Page must be greater than 0" })
-        .optional()
-        .default('1'),
-      limit: z.string()
-        .transform(Number)
-        .refine((val) => val > 0, { message: "Limit must be greater than 0" })
-        .optional()
-        .default('20')
+      page: z.string().transform(Number).refine((val) => val > 0, { message: "Page must be greater than 0" }).default('1'),
+      limit: z.string().transform(Number).refine((val) => val > 0, { message: "Limit must be greater than 0" }).default('20')
     })
   },
   responses: {
@@ -365,6 +380,7 @@ export const validateTokenPermissions = createRoute({
 export type GetCollections = typeof getCollections;
 export type CreateCollection = typeof createCollection;
 export type CreateExternalCollection = typeof createExternalCollection;
+export type GetExternalCollection = typeof getExternalCollection;
 export type GetCollection = typeof getCollection;
 export type PublishCollection = typeof publishCollection;
 export type GetCollectionTokens = typeof getCollectionTokens;

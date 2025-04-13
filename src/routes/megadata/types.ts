@@ -16,18 +16,6 @@ export const UpdateMegadataCollectionSchema = z.object({
 
 export type UpdateMegadataCollectionRequest = z.infer<typeof UpdateMegadataCollectionSchema>;
 
-export const MegadataCollectionResponseSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-  account_id: z.string(),
-  is_published: z.boolean(),
-  created_at: z.number(),
-  updated_at: z.number(),
-  type: z.string(),
-});
-
-export type MegadataCollectionResponse = z.infer<typeof MegadataCollectionResponseSchema>;
-
 export const CreateMegadataTokenSchema = z.object({
   id: z.string(),
   modules: z.array(z.string()),
@@ -77,21 +65,6 @@ export const CreateExternalCollectionSchema = z.object({
 });
 
 export type CreateExternalCollectionRequest = z.infer<typeof CreateExternalCollectionSchema>;
-
-export const ExternalCollectionDetailsSchema = z.object({
-  source: z.string(),
-  id: z.string(),
-  type: z.string(),
-  last_checked: z.number().nullable(), // Store as seconds timestamp, allow null
-});
-
-export const ExternalCollectionResponseSchema = MegadataCollectionResponseSchema.extend({
-  type: z.string(),
-  external_details: ExternalCollectionDetailsSchema,
-});
-
-export type ExternalCollectionResponse = z.infer<typeof ExternalCollectionResponseSchema>;
-
 export type GetCollectionTokens = typeof getCollectionTokens;
 export type GetToken = typeof getToken;
 export type CreateToken = typeof createToken;

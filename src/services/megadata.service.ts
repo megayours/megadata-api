@@ -1,13 +1,12 @@
 import { db } from "../db";
 import { megadataCollection, megadataToken, tokenModule, module, externalCollection } from "../db/schema";
 import { handleDatabaseError } from "../db/helpers";
-import type { MegadataCollection, NewMegadataCollection, MegadataToken, NewMegadataToken } from "../db";
+import type { MegadataCollection, NewMegadataCollection, MegadataToken, NewMegadataToken, ExternalCollection } from "../db";
 import { ResultAsync } from "neverthrow";
 import { AbstractionChainService } from "./abstraction-chain.service";
 import { eq, and, inArray, sql, getTableColumns } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { formatData } from "../utils/data-formatter";
-import type { ExternalCollectionResponse } from "../routes/megadata/types";
 import { ApiError } from "@/utils/errors";
 import * as HTTP_STATUS_CODES from "@/lib/http-status-codes";
 
@@ -53,33 +52,6 @@ export class MegadataService {
           if (!record) throw new Error("Failed to create collection");
           return record;
         }),
-      (error) => handleDatabaseError(error)
-    );
-  }
-
-  static async updateCollection(id: number, name: string): Promise<ResultAsync<MegadataCollection | null, ApiError>> {
-    return ResultAsync.fromPromise<MegadataCollection | null, ApiError>(
-      db.update(megadataCollection)
-        .set({
-          name,
-          updated_at: Math.floor(Date.now() / 1000)
-        })
-        .where(eq(megadataCollection.id, id))
-        .returning()
-        .then(result => result[0] || null),
-      (error) => handleDatabaseError(error)
-    );
-  }
-
-  static async deleteCollection(id: number): Promise<ResultAsync<MegadataCollection | null, ApiError>> {
-    return ResultAsync.fromPromise<MegadataCollection | null, ApiError>(
-      db.delete(megadataCollection)
-        .where(and(
-          eq(megadataCollection.id, id),
-          eq(megadataCollection.is_published, false)
-        ))
-        .returning()
-        .then(result => result[0] ?? null),
       (error) => handleDatabaseError(error)
     );
   }
@@ -326,113 +298,55 @@ export class MegadataService {
     );
   }
 
-  static async createExternalCollection(input: CreateExternalCollectionInput): Promise<ResultAsync<ExternalCollectionResponse, ApiError>> {
-    return ResultAsync.fromPromise(
-      db.transaction(async (tx) => {
-        // 1. Create the main collection record (using input.name)
-        const newCollectionArray = await tx
-          .insert(megadataCollection)
-          .values({
-            name: input.name,
-            account_id: input.account_id,
-            type: 'external',
-            is_published: false,
-          })
-          .returning();
-
-        const newCollection = newCollectionArray[0];
-        if (!newCollection) {
-          throw new Error("Failed to create megadata collection record.");
-        }
-
-        // 2. Create the external collection details record (using input.external_id)
-        const newExternalDetailsArray = await tx
-          .insert(externalCollection)
-          .values({
-            collection_id: newCollection.id,
-            source: input.source,
-            id: input.external_id,
-            type: input.type,
-            last_checked: null,
-          })
-          .returning();
-
-        const newExternalDetails = newExternalDetailsArray[0];
-        if (!newExternalDetails) {
-          throw new Error("Failed to create external collection details record.");
-        }
-
-        // 3. Construct the response object (use correct field names)
-        const response: ExternalCollectionResponse = {
-          ...newCollection,
+  static async createExternalCollection(input: CreateExternalCollectionInput): Promise<ExternalCollection | null> {
+    return db.transaction(async (tx) => {
+      // 1. Create the main collection record (using input.name)
+      const newCollectionArray = await tx
+        .insert(megadataCollection)
+        .values({
+          name: input.name,
+          account_id: input.account_id,
           type: 'external',
-          external_details: {
-            source: newExternalDetails.source,
-            id: newExternalDetails.id,
-            type: newExternalDetails.type,
-            last_checked: newExternalDetails.last_checked,
-          },
-        };
+          is_published: false,
+        })
+        .returning();
 
-        return response;
-      }),
-      (error) => handleDatabaseError(error)
-    );
+      const newCollection = newCollectionArray[0];
+      if (!newCollection) {
+        throw new Error("Failed to create megadata collection record.");
+      }
+
+      // 2. Create the external collection details record (using input.external_id)
+      const ec = await tx
+        .insert(externalCollection)
+        .values({
+          collection_id: newCollection.id,
+          source: input.source,
+          id: input.external_id,
+          type: input.type,
+          last_checked: null,
+        })
+        .returning()
+        .then(result => result[0] ?? null);
+
+
+      return ec;
+    })
   }
 
   static async getExternalCollectionBySourceIdType(
     source: string,
     id: string,
     type: string
-  ): Promise<ResultAsync<ExternalCollectionResponse, ApiError>> {
-    // Remove the outer async wrapper again, construct promise chain manually
-    const promise = (async () => {
-      // 1. Find the externalCollection record
-      const externalDetail = await db.query.externalCollection.findFirst({
-        where: and(
-          eq(sql`lower(${externalCollection.source})`, source.toLowerCase()),
-          eq(sql`lower(${externalCollection.id})`, id.toLowerCase()),
-          eq(sql`lower(${externalCollection.type})`, type.toLowerCase())
-        )
-      });
+  ): Promise<ExternalCollection | null> {
+    const ec = await db.query.externalCollection.findFirst({
+      where: and(
+        eq(sql`lower(${externalCollection.source})`, source.toLowerCase()),
+        eq(sql`lower(${externalCollection.id})`, id.toLowerCase()),
+        eq(sql`lower(${externalCollection.type})`, type.toLowerCase())
+      )
+    });
 
-      if (!externalDetail) {
-        throw new Error("External collection not found.");
-      }
-
-      // 2. Find the corresponding megadataCollection record
-      const megaCollection = await db.query.megadataCollection.findFirst({
-        where: eq(megadataCollection.id, externalDetail.collection_id)
-      });
-
-      if (!megaCollection) {
-        console.error(`Inconsistency: Found externalCollection (${externalDetail.collection_id}) but not megadataCollection.`);
-        throw new Error("Internal data inconsistency: Parent collection not found.");
-      }
-
-      // Construct response
-      const response: ExternalCollectionResponse = {
-        ...megaCollection,
-        type: type,
-        external_details: {
-          source: externalDetail.source,
-          id: externalDetail.id,
-          type: externalDetail.type,
-          last_checked: externalDetail.last_checked,
-        },
-      };
-      return response;
-    })(); // Immediately invoke the async function to get the promise
-
-    return ResultAsync.fromPromise(promise,
-      (error) => {
-        if (error instanceof Error && error.message === "External collection not found.") {
-          return new ApiError(error.message, HTTP_STATUS_CODES.NOT_FOUND);
-        } else if (error instanceof Error && error.message.includes("Internal data inconsistency")) {
-          return new ApiError(error.message, HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
-        }
-        return handleDatabaseError(error);
-      }
-    );
+    return ec ?? null;
   }
 } 

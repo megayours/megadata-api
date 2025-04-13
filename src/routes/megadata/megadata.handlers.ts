@@ -24,7 +24,8 @@ import type {
   CreateCollection,
   GetCollection,
   PublishCollection,
-  CreateExternalCollection
+  CreateExternalCollection,
+  GetExternalCollection
 } from "./megadata.routes";
 import { ApiError } from "@/utils/errors";
 import { MegadataService } from "@/services/megadata.service";
@@ -189,6 +190,22 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
   syncExternalCollection(workerArg);
 
   return c.json(collection, HTTP_STATUS_CODES.CREATED);
+}
+
+export const getExternalCollection: AppRouteHandler<GetExternalCollection> = async (c) => {
+  const { collection_id } = c.req.valid('param');
+
+  const collection = await db.select()
+    .from(externalCollection)
+    .where(eq(externalCollection.collection_id, collection_id))
+    .limit(1)
+    .then(result => result[0] || null);
+
+  if (!collection) {
+    return c.json({ error: "External collection not found" }, HTTP_STATUS_CODES.NOT_FOUND);
+  }
+
+  return c.json(collection, HTTP_STATUS_CODES.OK);
 }
 
 export const publishCollection: AppRouteHandler<PublishCollection> = async (c) => {

@@ -86,3 +86,5 @@ export const externalCollection = pgTable("external_collection", {
 }, (table) => [
   uniqueIndex("unique_external_collection").on(table.source, table.id, table.type),
 ]);
+
+export const selectExternalCollectionSchema = createSelectSchema(externalCollection);
