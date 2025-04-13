@@ -28,6 +28,7 @@ jobs:
           script: |
             cd /opt/megadata-api
             git pull
+            bun install
             bun db:migrate
             docker compose -f docker-compose.prod.yml down
             docker compose -f docker-compose.prod.yml up -d --build
