@@ -3,7 +3,7 @@ import * as handlers from "./module.handlers";
 import * as routes from "./module.routes";
 
 const router = createRouter()
-  .basePath("/module")
+  .basePath("/modules")
   .openapi(routes.getModulesRoute, handlers.getModulesHandler)
   .openapi(routes.getModuleRoute, handlers.getModuleByIdHandler);
 

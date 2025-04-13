@@ -19,7 +19,7 @@ type ModuleResponse = {
 
 describe("Module Routes", () => {
   test("GET /modules - should return list of modules", async () => {
-    const response = await app.module.$get(
+    const response = await app.modules.$get(
       {},
       {
         headers: {
@@ -40,7 +40,7 @@ describe("Module Routes", () => {
   });
 
   test("GET /modules/:id - should return module by id", async () => {
-    const response = await app.module[":id"].$get(
+    const response = await app.modules[":id"].$get(
       { param: { id: 'erc721' } },
       {
         headers: {
@@ -57,7 +57,7 @@ describe("Module Routes", () => {
   });
 
   test("GET /modules/:id - should return 404 for non-existent module", async () => {
-    const response = await app.module[":id"].$get(
+    const response = await app.modules[":id"].$get(
       { param: { id: 'non-existent-module' } },
       {
         headers: {

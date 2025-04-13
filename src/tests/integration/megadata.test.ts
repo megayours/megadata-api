@@ -4,12 +4,11 @@ import "../setup";
 import { randomUUID } from "crypto";
 import { isErrorResponse } from "../helpers";
 import { generateRandomAccount } from "../helpers";
-import type { MegadataCollectionResponse, MegadataTokenResponse } from "../../routes/megadata/types";
+import type { MegadataTokenResponse } from "../../routes/megadata/types";
 import { TEST_BYPASS_AUTH_HEADER } from "../../middleware/auth";
 import { ok } from "neverthrow";
-import { SPECIAL_MODULES } from "../../utils/constants";
 import { createTestApp } from "@/lib/create-app";
-
+import { selectCollectionsSchema } from "@/db/schema";
 import router from "@/routes/megadata/megadata.index";
 
 // Mock AbstractionChainService
@@ -63,7 +62,7 @@ describe("Megadata Collection Routes", () => {
       }
     );
     expect(response.status).toBe(201);
-    const data = await response.json() as MegadataCollectionResponse;
+    const data = await response.json();
     if (!isErrorResponse(data)) {
       expect(data.name).toBe(collection.name);
       expect(data.account_id).toBe(testAccount.id);
@@ -91,7 +90,7 @@ describe("Megadata Collection Routes", () => {
         headers: { 'Content-Type': 'application/json', [TEST_BYPASS_AUTH_HEADER]: testAccount.id }
       }
     );
-    const createdCollection2 = await createResponse2.json() as MegadataCollectionResponse; // Keep track of one ID for later check
+    const createdCollection2 = await createResponse2.json(); // Keep track of one ID for later check
 
     // Fetch collections for the account
     const response = await app.megadata.collections.$get(
@@ -101,9 +100,12 @@ describe("Megadata Collection Routes", () => {
       }
     );
     expect(response.status).toBe(200);
-    const data = await response.json() as MegadataCollectionResponse[];
+    const data = await response.json();
 
     expect(Array.isArray(data)).toBe(true);
+    if (isErrorResponse(data)) {
+      throw new Error("Failed to fetch collections");
+    }
     // Check if at least one of the created collections is present
     const foundCollection = data.find(col => col.id === createdCollection2.id);
     expect(foundCollection).toBeDefined();
@@ -139,7 +141,7 @@ describe("Megadata Collection Routes", () => {
         }
       }
     );
-    const createdCollection = await createResponse.json() as MegadataCollectionResponse;
+    const createdCollection = await createResponse.json();
     if (isErrorResponse(createdCollection)) {
       throw new Error("Failed to create test collection");
     }
@@ -155,7 +157,7 @@ describe("Megadata Collection Routes", () => {
       }
     );
     expect(response.status).toBe(200);
-    const data = await response.json() as MegadataCollectionResponse;
+    const data = await response.json();
     if (!isErrorResponse(data)) {
       expect(data.id).toBe(createdCollection.id);
       expect(data.name).toBe(collection.name);
@@ -190,7 +192,7 @@ describe("Megadata Collection Routes", () => {
       }
     });
 
-    const createdCollection = await createResponse.json() as MegadataCollectionResponse;
+    const createdCollection = await createResponse.json();
     if (isErrorResponse(createdCollection)) {
       throw new Error("Failed to create test collection");
     }
@@ -221,7 +223,7 @@ describe("Megadata Collection Routes", () => {
         }
       }
     );
-    const data = await getResponse.json() as MegadataCollectionResponse;
+    const data = await getResponse.json();
     if (!isErrorResponse(data)) {
       console.log(data);
       expect(data.is_published).toBe(true);
@@ -243,7 +245,7 @@ describe("Megadata Collection Routes", () => {
 
 describe("Megadata Token Routes", () => {
   let testAccount: { id: string; type: string };
-  let testCollection: MegadataCollectionResponse;
+  let testCollection: typeof selectCollectionsSchema;
 
   beforeEach(async () => {
     testAccount = generateRandomAccount();
@@ -260,7 +262,7 @@ describe("Megadata Token Routes", () => {
         [TEST_BYPASS_AUTH_HEADER]: testAccount.id
       }
     });
-    testCollection = await createResponse.json() as MegadataCollectionResponse;
+    testCollection = await createResponse.json();
     if (isErrorResponse(testCollection)) {
       throw new Error("Failed to create test collection");
     }
