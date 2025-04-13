@@ -90,6 +90,8 @@ export const createCollection: AppRouteHandler<CreateCollection> = async (c) => 
 
   const account = await AccountService.ensureAccount(accountId);
 
+  c.var.logger.info({ name, account_id: account.id }, "Creating collection");
+
   const collection = await db.insert(megadataCollection)
     .values({ name, account_id: account.id })
     .returning()
