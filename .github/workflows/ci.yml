@@ -38,9 +38,13 @@ jobs:
 
       - name: Run migrations
         run: bun db:migrate
+        env:
+          DB_URL: postgres://postgres:postgres@localhost:5432/postgres
 
       - name: Seed database
         run: bun db:seed
+        env:
+          DB_URL: postgres://postgres:postgres@localhost:5432/postgres
 
       - name: Run tests
         run: bun test
