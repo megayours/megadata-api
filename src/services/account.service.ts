@@ -3,8 +3,9 @@ import { account } from "../db/schema";
 import { handleDatabaseError } from "../db/helpers";
 import type { Account, NewAccount } from "../db";
 import { ResultAsync } from "neverthrow";
-import type { Error } from "../types/error";
 import { eq, desc } from "drizzle-orm";
+import { ApiError } from "@/utils/errors";
+import * as HTTP_STATUS_CODES from "@/lib/http-status-codes";
 
 export class AccountService {
   static async getAllAccounts(): Promise<ResultAsync<Account[], Error>> {
@@ -21,13 +22,18 @@ export class AccountService {
     );
   }
 
-  static async ensureAccount(id: string): Promise<ResultAsync<Account, Error>> {
-    const accountResult = await this.getAccountById(id);
-    if (accountResult.isErr() || !accountResult.value) {
-      return this.createAccount({ id, type: "megadata" });
+  static async ensureAccount(id: string): Promise<Account> {
+    // First try to get the existing account
+    const existingAccount = await db.select().from(account).where(eq(account.id, id)).limit(1).then(result => result[0] ?? null);
+    
+    if (existingAccount) {
+      return existingAccount;
     }
 
-    return accountResult.map(acc => acc!);
+    // If account doesn't exist, create it
+    const result = await db.insert(account).values({ id, type: "megadata" }).returning().then(result => result[0] ?? null);
+    if (!result) throw new ApiError("Failed to create account", HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+    return result;
   }
 
   static async createAccount(accountData: NewAccount): Promise<ResultAsync<Account, Error>> {

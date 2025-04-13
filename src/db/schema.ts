@@ -1,5 +1,6 @@
-import { pgTable, text, integer, jsonb, boolean, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, jsonb, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 
 export const account = pgTable("account", {
   id: text("id").primaryKey(),
@@ -19,6 +20,21 @@ export const megadataCollection = pgTable("megadata_collection", {
   created_at: integer("created_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
   updated_at: integer("updated_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
 });
+
+export const selectCollectionsSchema = createSelectSchema(megadataCollection);
+export const insertCollectionsSchema = createInsertSchema(
+  megadataCollection,
+  {
+    name: schema => schema.min(1).max(255),
+  }
+).required()
+  .omit({
+    type: true,
+    account_id: true,
+    is_published: true,
+    created_at: true,
+    updated_at: true,
+  });
 
 export const megadataToken = pgTable("megadata_token", {
   row_id: integer("row_id").primaryKey().generatedAlwaysAsIdentity(),

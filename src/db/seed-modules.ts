@@ -70,19 +70,19 @@ const extendingCollectionSchema = {
 
 const seedModules = async () => {
   try {
-    // await db.insert(module).values({
-    //   id: "erc721",
-    //   name: "ERC721",
-    //   description: "Format for standard ERC721 structured metadata",
-    //   schema: erc721Schema
-    // });
+    await db.insert(module).values({
+      id: "erc721",
+      name: "ERC721",
+      description: "Format for standard ERC721 structured metadata",
+      schema: erc721Schema
+    });
 
-    // await db.insert(module).values({
-    //   id: "extending_metadata",
-    //   name: "Extending Metadata",
-    //   description: "Enables the metadata of an existing URI to be extended",
-    //   schema: extendingMetadataSchema
-    // });
+    await db.insert(module).values({
+      id: "extending_metadata",
+      name: "Extending Metadata",
+      description: "Enables the metadata of an existing URI to be extended",
+      schema: extendingMetadataSchema
+    });
 
     await db.insert(module).values({
       id: SPECIAL_MODULES.EXTENDING_COLLECTION,

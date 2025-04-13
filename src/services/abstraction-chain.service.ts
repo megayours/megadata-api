@@ -2,26 +2,20 @@ import { createClient, newSignatureProvider } from "postchain-client";
 import { err, ok, ResultAsync } from "neverthrow";
 
 export class AbstractionChainService {
-  static async createCollection(account: string, id: number, name: string): Promise<ResultAsync<boolean, Error>> {
+  static async createCollection(account: string, id: number, name: string): Promise<void> {
     const client = await this.createClient();
 
     const signatureProvider = this.getSignatureProvider();
 
-    try {
-      await client.signAndSendUniqueTransaction({
-        operations: [
-          {
-            name: "megadata.create_collection",
-            args: [account, id.toString(), name]
-          }
-        ],
-        signers: [signatureProvider.pubKey]
-      }, signatureProvider);
-
-      return ok(true);
-    } catch (error) {
-      return err(new Error("Failed to create collection on chain", { cause: error }));
-    }
+    await client.signAndSendUniqueTransaction({
+      operations: [
+        {
+          name: "megadata.create_collection",
+          args: [account, id.toString(), name]
+        }
+      ],
+      signers: [signatureProvider.pubKey]
+    }, signatureProvider);
   }
 
   static async createItems(collectionId: number, items: { id: string, data: Record<string, any> }[]) {

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { getCollectionTokens, getToken, createToken, updateToken, deleteToken, validateTokenPermissions } from './megadata.routes';
+import type { SuccessResponseSchema } from '@/lib/schemas';
 
 export const CreateMegadataCollectionSchema = z.object({
   name: z.string(),
@@ -22,7 +24,6 @@ export const MegadataCollectionResponseSchema = z.object({
   created_at: z.number(),
   updated_at: z.number(),
   type: z.string(),
-  modules: z.array(z.string()),
 });
 
 export type MegadataCollectionResponse = z.infer<typeof MegadataCollectionResponseSchema>;
@@ -63,9 +64,7 @@ export const ErrorResponseSchema = z.object({
 
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 
-export const SuccessResponseSchema = z.object({
-  success: z.boolean()
-});
+
 
 export type SuccessResponse = z.infer<typeof SuccessResponseSchema>;
 
@@ -92,3 +91,10 @@ export const ExternalCollectionResponseSchema = MegadataCollectionResponseSchema
 });
 
 export type ExternalCollectionResponse = z.infer<typeof ExternalCollectionResponseSchema>;
+
+export type GetCollectionTokens = typeof getCollectionTokens;
+export type GetToken = typeof getToken;
+export type CreateToken = typeof createToken;
+export type UpdateToken = typeof updateToken;
+export type DeleteToken = typeof deleteToken;
+export type ValidateTokenPermissions = typeof validateTokenPermissions;

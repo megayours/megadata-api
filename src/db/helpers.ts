@@ -1,22 +1,24 @@
 import { eq } from 'drizzle-orm';
 import { db } from './index';
 import { account } from './schema';
-import type { Error } from '../types/error';
+import { ApiError } from '@/utils/errors';
 
 export async function accountExists(accountId: string): Promise<boolean> {
   const result = await db.select().from(account).where(eq(account.id, accountId)).limit(1);
   return result.length > 0;
 }
 
-export const handleDatabaseError = (error: unknown): Error => {
-  if (error instanceof Error) {
+export const handleDatabaseError = (error: unknown): ApiError => {
+  if (error instanceof ApiError) {
     return {
-      context: error.message,
-      status: 500,
+      message: error.message,
+      status: error.status,
+      name: error.name,
     };
   }
   return {
-    context: 'Unknown database error',
+    name: 'UnknownDatabaseError',
+    message: 'Unknown database error',
     status: 500,
   };
 };

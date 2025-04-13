@@ -1,14 +1,15 @@
 import { db } from "../db";
 import { megadataCollection, megadataToken, tokenModule, module, externalCollection } from "../db/schema";
 import { handleDatabaseError } from "../db/helpers";
-import type { MegadataCollection, NewMegadataCollection, MegadataToken, NewMegadataToken, Module, ExternalCollection } from "../db";
-import { err, ok, ResultAsync } from "neverthrow";
+import type { MegadataCollection, NewMegadataCollection, MegadataToken, NewMegadataToken } from "../db";
+import { ResultAsync } from "neverthrow";
 import { AbstractionChainService } from "./abstraction-chain.service";
-import type { Error } from "../types/error";
 import { eq, and, inArray, sql, getTableColumns } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { formatData } from "../utils/data-formatter";
 import type { ExternalCollectionResponse } from "../routes/megadata/types";
+import { ApiError } from "@/utils/errors";
+import * as HTTP_STATUS_CODES from "@/lib/http-status-codes";
 
 interface CreateExternalCollectionInput {
   name: string;
@@ -19,8 +20,8 @@ interface CreateExternalCollectionInput {
 }
 
 export class MegadataService {
-  static async getAllCollections({ type, accountId }: { type?: string, accountId?: string }): Promise<ResultAsync<MegadataCollection[], Error>> {
-    return ResultAsync.fromPromise<MegadataCollection[], Error>(
+  static async getAllCollections({ type, accountId }: { type?: string, accountId?: string }): Promise<ResultAsync<MegadataCollection[], ApiError>> {
+    return ResultAsync.fromPromise<MegadataCollection[], ApiError>(
       db.select()
         .from(megadataCollection)
         .where(and(
@@ -31,8 +32,8 @@ export class MegadataService {
     );
   }
 
-  static async getCollectionById(id: number): Promise<ResultAsync<MegadataCollection | null, Error>> {
-    return ResultAsync.fromPromise<MegadataCollection | null, Error>(
+  static async getCollectionById(id: number): Promise<ResultAsync<MegadataCollection | null, ApiError>> {
+    return ResultAsync.fromPromise<MegadataCollection | null, ApiError>(
       db.select()
         .from(megadataCollection)
         .where(eq(megadataCollection.id, id))
@@ -42,8 +43,8 @@ export class MegadataService {
     );
   }
 
-  static async createCollection(collection: NewMegadataCollection): Promise<ResultAsync<MegadataCollection, Error>> {
-    return ResultAsync.fromPromise<MegadataCollection, Error>(
+  static async createCollection(collection: NewMegadataCollection): Promise<ResultAsync<MegadataCollection, ApiError>> {
+    return ResultAsync.fromPromise<MegadataCollection, ApiError>(
       db.insert(megadataCollection)
         .values(collection)
         .returning()
@@ -56,8 +57,8 @@ export class MegadataService {
     );
   }
 
-  static async updateCollection(id: number, name: string): Promise<ResultAsync<MegadataCollection | null, Error>> {
-    return ResultAsync.fromPromise<MegadataCollection | null, Error>(
+  static async updateCollection(id: number, name: string): Promise<ResultAsync<MegadataCollection | null, ApiError>> {
+    return ResultAsync.fromPromise<MegadataCollection | null, ApiError>(
       db.update(megadataCollection)
         .set({
           name,
@@ -70,8 +71,8 @@ export class MegadataService {
     );
   }
 
-  static async deleteCollection(id: number): Promise<ResultAsync<MegadataCollection | null, Error>> {
-    return ResultAsync.fromPromise<MegadataCollection | null, Error>(
+  static async deleteCollection(id: number): Promise<ResultAsync<MegadataCollection | null, ApiError>> {
+    return ResultAsync.fromPromise<MegadataCollection | null, ApiError>(
       db.delete(megadataCollection)
         .where(and(
           eq(megadataCollection.id, id),
@@ -83,113 +84,54 @@ export class MegadataService {
     );
   }
 
-  static async publishCollection(accountId: string, id: number, tokenIds: string[], all: boolean): Promise<ResultAsync<boolean, Error>> {
-    const collectionResult = await this.getCollectionById(id);
-    if (collectionResult.isErr()) {
-      return err(collectionResult.error);
-    }
-
-    const collection = collectionResult.value;
-    if (!collection) {
-      return err({ context: "Collection not found", status: 404 });
-    }
-
+  static async publishCollection(collection: MegadataCollection, tokenIds: string[] = [], all: boolean = false): Promise<boolean> {
     if (!collection.is_published) {
-      await AbstractionChainService.createCollection(accountId, collection.id, collection.name);
+      await AbstractionChainService.createCollection(collection.account_id, collection.id, collection.name);
 
-      const publishResult = await ResultAsync.fromPromise<boolean, Error>(
-        db.update(megadataCollection)
-          .set({ is_published: true })
-          .where(eq(megadataCollection.id, id))
-          .then(() => true),
-        (error) => handleDatabaseError(error)
-      );
-
-      if (publishResult.isErr()) {
-        return err(publishResult.error);
-      }
+      await db.update(megadataCollection)
+        .set({ is_published: true })
+        .where(eq(megadataCollection.id, collection.id))
+        .then(() => true);
     }
 
-    const tokensResult = await ResultAsync.fromPromise<MegadataToken[], Error>(
-      db.select()
-        .from(megadataToken)
-        .where(and(
-          eq(megadataToken.collection_id, id),
-          all ? undefined : inArray(megadataToken.id, tokenIds)
-        )),
-      (error) => handleDatabaseError(error)
-    );
+    const tokens = await db.select({
+      ...getTableColumns(megadataToken),
+      modules: sql<{ id: string, schema: any }[]>`array_agg(json_build_object('id', ${module.id}, 'schema', ${module.schema}))`.as('modules')
+    })
+      .from(megadataToken)
+      .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
+      .leftJoin(module, eq(tokenModule.module_id, module.id))
+      .where(and(
+        eq(megadataToken.collection_id, collection.id),
+        all ? undefined : inArray(megadataToken.id, tokenIds)
+      ))
+      .groupBy(megadataToken.id, megadataToken.row_id);
 
-    if (tokensResult.isErr()) {
-      return err(tokensResult.error);
-    }
+    if (tokens.length === 0) return true;
 
-    console.log(`Tokens result`, tokensResult.value);
+    const toPublish: { id: string, data: Record<string, any> }[] = [];
 
-    const toPublish = tokensResult.value;
-    if (toPublish.length === 0) {
-      return ok(true);
-    }
+    for (const token of tokens) {
+      const formattedData = formatData(token.data as Record<string, any>, token.modules ?? []);
 
-    const publishPromises = toPublish.map(async (token) => {
-      const tokenWithModules = await this.getTokenById(id, token.id);
-      if (tokenWithModules.isErr()) {
-        return err(tokenWithModules.error);
-      }
-      console.log(`Token with modules`, tokenWithModules.value);
-
-      const tokenData = tokenWithModules.value;
-      if (!tokenData) {
-        return err({ context: "Token not found", status: 404 });
-      }
-
-      const modulesResult = await ResultAsync.fromPromise<Module[], Error>(
-        db.select()
-          .from(module)
-          .where(inArray(module.id, tokenData.modules ?? [])),
-        (error) => handleDatabaseError(error)
-      );
-
-      if (modulesResult.isErr()) {
-        return err(modulesResult.error);
-      }
-
-      console.log(`Modules result`, modulesResult.value);
-
-      const tokenModules = modulesResult.value;
-      const formattedData = formatData(token.data as Record<string, any>, tokenModules);
-
-      console.log(`Formatted data`, formattedData);
-
-      return AbstractionChainService.createItems(collection.id, [{
+      toPublish.push({
         id: token.id,
         data: formattedData
-      }]);
-    });
-
-    const results = await Promise.all(publishPromises);
-    for (const result of results) {
-      if (result.isErr()) {
-        const error = result.error as Error;
-        return err({ context: error.context, status: error.status });
-      }
+      });
     }
 
-    console.log(`Publishing tokens`, results);
+    await AbstractionChainService.createItems(collection.id, toPublish);
 
-    return ResultAsync.fromPromise<boolean, Error>(
-      db.update(megadataToken)
-        .set({ is_published: true })
-        .where(and(
-          eq(megadataToken.collection_id, id),
-          inArray(megadataToken.id, toPublish.map(token => token.id))
-        ))
-        .then(() => true),
-      (error) => handleDatabaseError(error)
-    );
+    return db.update(megadataToken)
+      .set({ is_published: true })
+      .where(and(
+        eq(megadataToken.collection_id, collection.id),
+        inArray(megadataToken.id, toPublish.map(token => token.id))
+      ))
+      .then(() => true);
   }
 
-  static async getCollectionTokens(collectionId: number, page: number = 1, limit: number = 20): Promise<ResultAsync<{ data: MegadataToken[], pagination: { total: number, page: number, limit: number, total_pages: number } }, Error>> {
+  static async getCollectionTokens(collectionId: number, page: number = 1, limit: number = 20): Promise<ResultAsync<{ data: MegadataToken[], pagination: { total: number, page: number, limit: number, total_pages: number } }, ApiError>> {
     return ResultAsync.fromPromise(
       Promise.all([
         // Get total count
@@ -230,8 +172,8 @@ export class MegadataService {
     );
   }
 
-  static async getTokenById(collectionId: number, tokenId: string): Promise<ResultAsync<MegadataToken | null, Error>> {
-    return ResultAsync.fromPromise<MegadataToken | null, Error>(
+  static async getTokenById(collectionId: number, tokenId: string): Promise<ResultAsync<MegadataToken | null, ApiError>> {
+    return ResultAsync.fromPromise<MegadataToken | null, ApiError>(
       db.select({
         ...getTableColumns(megadataToken),
         modules: sql<string[] | null>`array_agg(${tokenModule.module_id})`.as('modules')
@@ -253,8 +195,8 @@ export class MegadataService {
     );
   }
 
-  static async createTokens(collectionId: number, tokens: NewMegadataToken[]): Promise<ResultAsync<MegadataToken[], Error>> {
-    return ResultAsync.fromPromise<MegadataToken[], Error>(
+  static async createTokens(collectionId: number, tokens: NewMegadataToken[]): Promise<ResultAsync<MegadataToken[], ApiError>> {
+    return ResultAsync.fromPromise<MegadataToken[], ApiError>(
       db.transaction(async (tx) => {
         // Create the tokens
         const createdTokens = await tx.insert(megadataToken)
@@ -287,8 +229,8 @@ export class MegadataService {
     );
   }
 
-  static async updateToken(collectionId: number, tokenId: string, data: any, modules?: string[]): Promise<ResultAsync<MegadataToken | null, Error>> {
-    return ResultAsync.fromPromise<MegadataToken | null, Error>(
+  static async updateToken(collectionId: number, tokenId: string, data: any, modules?: string[]): Promise<ResultAsync<MegadataToken | null, ApiError>> {
+    return ResultAsync.fromPromise<MegadataToken | null, ApiError>(
       db.transaction(async (tx) => {
         // Get the existing token
         const [token] = await tx.select()
@@ -338,8 +280,8 @@ export class MegadataService {
     );
   }
 
-  static async deleteToken(collectionId: number, tokenId: string): Promise<ResultAsync<MegadataToken | null, Error>> {
-    return ResultAsync.fromPromise<MegadataToken | null, Error>(
+  static async deleteToken(collectionId: number, tokenId: string): Promise<ResultAsync<MegadataToken | null, ApiError>> {
+    return ResultAsync.fromPromise<MegadataToken | null, ApiError>(
       db.delete(megadataToken)
         .where(and(
           eq(megadataToken.id, tokenId),
@@ -352,8 +294,8 @@ export class MegadataService {
     );
   }
 
-  static async updateTokenModules(collectionId: number, tokenId: string, modules: string[]): Promise<ResultAsync<boolean, Error>> {
-    return ResultAsync.fromPromise<boolean, Error>(
+  static async updateTokenModules(collectionId: number, tokenId: string, modules: string[]): Promise<ResultAsync<boolean, ApiError>> {
+    return ResultAsync.fromPromise<boolean, ApiError>(
       db.transaction(async (tx) => {
         const [token] = await tx.select()
           .from(megadataToken)
@@ -384,7 +326,7 @@ export class MegadataService {
     );
   }
 
-  static async createExternalCollection(input: CreateExternalCollectionInput): Promise<ResultAsync<ExternalCollectionResponse, Error>> {
+  static async createExternalCollection(input: CreateExternalCollectionInput): Promise<ResultAsync<ExternalCollectionResponse, ApiError>> {
     return ResultAsync.fromPromise(
       db.transaction(async (tx) => {
         // 1. Create the main collection record (using input.name)
@@ -423,7 +365,6 @@ export class MegadataService {
         // 3. Construct the response object (use correct field names)
         const response: ExternalCollectionResponse = {
           ...newCollection,
-          modules: [],
           type: 'external',
           external_details: {
             source: newExternalDetails.source,
@@ -443,7 +384,7 @@ export class MegadataService {
     source: string,
     id: string,
     type: string
-  ): Promise<ResultAsync<ExternalCollectionResponse, Error>> {
+  ): Promise<ResultAsync<ExternalCollectionResponse, ApiError>> {
     // Remove the outer async wrapper again, construct promise chain manually
     const promise = (async () => {
       // 1. Find the externalCollection record
@@ -472,7 +413,6 @@ export class MegadataService {
       // Construct response
       const response: ExternalCollectionResponse = {
         ...megaCollection,
-        modules: [],
         type: type,
         external_details: {
           source: externalDetail.source,
@@ -483,14 +423,13 @@ export class MegadataService {
       };
       return response;
     })(); // Immediately invoke the async function to get the promise
-    
-    return ResultAsync.fromPromise(promise, // Pass the promise itself
+
+    return ResultAsync.fromPromise(promise,
       (error) => {
-        // Error handling remains the same
         if (error instanceof Error && error.message === "External collection not found.") {
-          return { context: error.message, status: 404 };
+          return new ApiError(error.message, HTTP_STATUS_CODES.NOT_FOUND);
         } else if (error instanceof Error && error.message.includes("Internal data inconsistency")) {
-          return { context: error.message, status: 500 };
+          return new ApiError(error.message, HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
         }
         return handleDatabaseError(error);
       }

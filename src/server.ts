@@ -1,7 +1,8 @@
 import app from './index';
 import { initJWKS } from './config/jwt';
+import env from './env';
 
-const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const port = env.PORT;
 
 // Initialize JWKS before starting the server
 initJWKS().catch((error) => {
