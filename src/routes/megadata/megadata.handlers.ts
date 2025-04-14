@@ -41,17 +41,12 @@ import { syncExternalCollection } from "@/workers/external_collection_worker";
 const validatorService = new ModuleValidatorService();
 
 export const getCollections: AppRouteHandler<GetCollections> = async (c) => {
-  const accountId = getWalletAddress(c);
-  if (!accountId) {
-    return unauthorized(c);
-  }
-
-  const type = c.req.query('type');
+  const { type, account_id } = c.req.valid('query');
 
   const collections = await db.select()
     .from(megadataCollection)
     .where(and(
-      accountId ? eq(megadataCollection.account_id, accountId) : undefined,
+      account_id ? eq(megadataCollection.account_id, account_id) : undefined,
       type ? eq(megadataCollection.type, type) : undefined
     ));
 
@@ -59,11 +54,6 @@ export const getCollections: AppRouteHandler<GetCollections> = async (c) => {
 };
 
 export const getCollection: AppRouteHandler<GetCollection> = async (c) => {
-  const walletAddress = getWalletAddress(c);
-  if (!walletAddress) {
-    return unauthorized(c);
-  }
-
   const { collection_id } = c.req.valid('param');
 
   const collection = await db.select()
@@ -237,11 +227,6 @@ export const publishCollection: AppRouteHandler<PublishCollection> = async (c) =
 }
 
 export const getCollectionTokens: AppRouteHandler<GetCollectionTokens> = async (c) => {
-  const walletAddress = getWalletAddress(c);
-  if (!walletAddress) {
-    return unauthorized(c);
-  }
-
   const { collection_id } = c.req.valid('param');
   const { page, limit } = c.req.valid('query');
 
@@ -258,10 +243,7 @@ export const getCollectionTokens: AppRouteHandler<GetCollectionTokens> = async (
   const collection = await db
     .select()
     .from(megadataCollection)
-    .where(and(
-      eq(megadataCollection.id, Number(collection_id)),
-      eq(megadataCollection.account_id, walletAddress)
-    ))
+    .where(eq(megadataCollection.id, Number(collection_id)))
     .limit(1)
     .then(result => result[0] || null);
 
@@ -303,11 +285,6 @@ export const getCollectionTokens: AppRouteHandler<GetCollectionTokens> = async (
 };
 
 export const getToken: AppRouteHandler<GetToken> = async (c) => {
-  const walletAddress = getWalletAddress(c);
-  if (!walletAddress) {
-    return unauthorized(c);
-  }
-
   const { collection_id, token_id } = c.req.valid('param');
 
   const collection = await db.query.megadataCollection.findFirst({
@@ -350,7 +327,10 @@ export const createToken: AppRouteHandler<CreateToken> = async (c) => {
 
   const collection = await db.select()
     .from(megadataCollection)
-    .where(eq(megadataCollection.id, collection_id))
+    .where(and(
+      eq(megadataCollection.id, collection_id),
+      eq(megadataCollection.account_id, walletAddress)
+    ))
     .limit(1)
     .then(result => result[0] || null);
 
@@ -429,7 +409,10 @@ export const updateToken: AppRouteHandler<UpdateToken> = async (c) => {
 
   const collection = await db.select()
     .from(megadataCollection)
-    .where(eq(megadataCollection.id, collection_id))
+    .where(and(
+      eq(megadataCollection.id, collection_id),
+      eq(megadataCollection.account_id, walletAddress)
+    ))
     .limit(1)
     .then(result => result[0] || null);
 
@@ -495,7 +478,10 @@ export const deleteToken: AppRouteHandler<DeleteToken> = async (c) => {
 
   const collection = await db.select()
     .from(megadataCollection)
-    .where(eq(megadataCollection.id, collection_id))
+    .where(and(
+      eq(megadataCollection.id, collection_id),
+      eq(megadataCollection.account_id, walletAddress)
+    ))
     .limit(1)
     .then(result => result[0] || null);
 

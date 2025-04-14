@@ -94,7 +94,7 @@ describe("Megadata Collection Routes", () => {
 
     // Fetch collections for the account
     const response = await app.megadata.collections.$get(
-      { query: { type: 'default' } },
+      { query: { type: 'default', account_id: testAccount.id } },
       {
         headers: { 'Content-Type': 'application/json', [TEST_BYPASS_AUTH_HEADER]: testAccount.id }
       }
@@ -124,7 +124,7 @@ describe("Megadata Collection Routes", () => {
         headers: { 'Content-Type': 'application/json' }
       }
     );
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(200);
   });
 
   test("GET /megadata/collections/:id - should return collection by id", async () => {
@@ -168,12 +168,6 @@ describe("Megadata Collection Routes", () => {
   test("GET /megadata/collections/:id - should return 404 for non-existent collection", async () => {
     const response = await app.megadata.collections[":collection_id"].$get(
       { param: { collection_id: '999999' } },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
-        }
-      }
     );
     expect(response.status).toBe(404);
   });

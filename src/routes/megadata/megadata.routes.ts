@@ -7,6 +7,7 @@ import {
   UpdateMegadataTokenSchema
 } from "./types";
 import { error, SuccessResponseSchema } from "@/lib/schemas";
+import { protectedRoute } from "@/lib/security";
 
 export const getCollections = createRoute({
   method: 'get',
@@ -15,7 +16,8 @@ export const getCollections = createRoute({
   summary: 'Get all collections',
   request: {
     query: z.object({
-      type: z.string().optional()
+      type: z.string().optional(),
+      account_id: z.string().optional()
     })
   },
   responses: {
@@ -69,6 +71,7 @@ export const createCollection = createRoute({
   path: '/collections',
   tags: ['Collections'],
   summary: 'Create a new collection',
+  security: protectedRoute,
   request: {
     body: {
       content: {
@@ -96,6 +99,7 @@ export const createExternalCollection = createRoute({
   path: '/external-collections',
   tags: ['Collections'],
   summary: 'Create a new external collection',
+  security: protectedRoute,
   request: {
     body: {
       content: {
@@ -159,6 +163,7 @@ export const publishCollection = createRoute({
   path: '/collections/{collection_id}/publish',
   tags: ['Collections'],
   summary: 'Publish a collection',
+  security: protectedRoute,
   request: {
     params: z.object({
       collection_id: z.string().transform(Number)
@@ -256,6 +261,7 @@ export const createToken = createRoute({
   path: '/collections/{collection_id}/tokens',
   tags: ['Tokens'],
   summary: 'Create tokens in a collection',
+  security: protectedRoute,
   request: {
     params: z.object({
       collection_id: z.string().transform(Number)
@@ -290,6 +296,7 @@ export const updateToken = createRoute({
   path: '/collections/{collection_id}/tokens/{token_id}',
   tags: ['Tokens'],
   summary: 'Update a token',
+  security: protectedRoute,
   request: {
     params: z.object({
       collection_id: z.string().transform(Number),
@@ -325,6 +332,7 @@ export const deleteToken = createRoute({
   path: '/collections/{collection_id}/tokens/{token_id}',
   tags: ['Tokens'],
   summary: 'Delete a token',
+  security: protectedRoute,
   request: {
     params: z.object({
       collection_id: z.string().transform(Number),
@@ -352,6 +360,7 @@ export const validateTokenPermissions = createRoute({
   path: '/collections/{collection_id}/tokens/{token_id}/validate',
   tags: ['Tokens'],
   summary: 'Validate token modification permissions',
+  security: protectedRoute,
   request: {
     params: z.object({
       collection_id: z.string().transform(Number),

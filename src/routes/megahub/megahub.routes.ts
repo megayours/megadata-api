@@ -1,11 +1,13 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { error } from "@/lib/schemas";
 import { SuccessResponseSchema } from "@/lib/schemas";
+import { protectedRoute } from "@/lib/security";
 
 export const uploadFileRoute = createRoute({
   method: 'post',
   path: '/upload-file',
   tags: ['File Upload'],
+  security: protectedRoute,
   summary: 'Upload a file to the abstraction chain',
   request: {
     body: {
@@ -30,6 +32,7 @@ export const uploadFileRoute = createRoute({
       },
       description: 'File uploaded successfully'
     },
+    401: error('Unauthorized'),
     500: error('Internal server error')
   }
 });

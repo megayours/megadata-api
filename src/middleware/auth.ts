@@ -3,15 +3,29 @@ import { verifyToken, getWalletAddress } from '../config/jwt';
 
 export const TEST_BYPASS_AUTH_HEADER = 'X-Test-Wallet-Address';
 
+interface SecurityRequirement {
+  bearerAuth?: string[];
+}
+
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
+  console.log('authMiddleware');
+  
   if (process.env.NODE_ENV !== 'production') {
     const testBypassAuthHeader = c.req.header(TEST_BYPASS_AUTH_HEADER);
     if (testBypassAuthHeader) {
+      console.log('Test bypass auth header found');
       c.set('walletAddress', testBypassAuthHeader);
-
       await next();
       return;
     }
+  }
+
+  // Check if route requires authentication
+  const route = c.get('route');
+  if (!route?.security?.some((sec: SecurityRequirement) => sec.bearerAuth)) {
+    console.log('No authentication required');
+    await next();
+    return;
   }
 
   const authHeader = c.req.header('Authorization');
