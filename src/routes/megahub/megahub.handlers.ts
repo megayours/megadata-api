@@ -2,9 +2,11 @@ import { AbstractionChainService } from "../../services/abstraction-chain.servic
 import { FsFile, type ContentType } from "filehub";
 import { type UploadFile } from "./megahub.routes";
 import type { AppRouteHandler } from "@/lib/types";
+import { getWalletAddress } from "@/lib/context-fetcher";
 
 export const uploadFileHandler: AppRouteHandler<UploadFile> = async (c) => {
-  const { file, contentType, account } = c.req.valid('json');
+  const account = getWalletAddress(c);
+  const { file, contentType } = c.req.valid('json');
   const fileBuffer = Buffer.from(file, 'base64');
   const fsFile = FsFile.fromData(fileBuffer, { 'Content-Type': contentType as ContentType });
   
