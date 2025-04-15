@@ -6,11 +6,11 @@ import { getWalletAddress } from "@/lib/context-fetcher";
 
 export const uploadFileHandler: AppRouteHandler<UploadFile> = async (c) => {
   const account = getWalletAddress(c);
-  const { file, contentType } = c.req.valid('json');
+  const { file, contentType, name } = c.req.valid('json');
   const fileBuffer = Buffer.from(file, 'base64');
   const fsFile = FsFile.fromData(fileBuffer, { 'Content-Type': contentType as ContentType });
   
-  await AbstractionChainService.uploadFile(fsFile.data, contentType, account);
+  await AbstractionChainService.uploadFile(fsFile.data, contentType, account, name);
 
   return c.json({ success: true, hash: fsFile.hash.toString('hex') }, 201);
 }; 
