@@ -3,6 +3,7 @@ import { err, ok, ResultAsync } from "neverthrow";
 
 export class AbstractionChainService {
   static async createCollection(account: string, id: number, name: string): Promise<void> {
+    console.log("Creating collection on chain for collection", account, id, name);
     const client = await this.createClient();
 
     const signatureProvider = this.getSignatureProvider();
@@ -19,6 +20,7 @@ export class AbstractionChainService {
   }
 
   static async createItems(collectionId: number, items: { id: string, data: Record<string, any> }[]) {
+    console.log("Creating items on chain for collection", collectionId, items);
     const client = await this.createClient();
 
     const signatureProvider = this.getSignatureProvider();

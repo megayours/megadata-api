@@ -11,7 +11,7 @@ export const formatData = (data: Record<string, any>, modules: { id: string, sch
 
     const filteredDataForModule: Record<string, any> = {};
     for (const key in data) {
-      if (Object.prototype.hasOwnProperty.call(data, key) && moduleProperties.has(key)) {
+      if (Object.prototype.hasOwnProperty.call(data, key) && moduleProperties.has(key) && data[key]) {
         filteredDataForModule[key] = data[key];
       }
     }
