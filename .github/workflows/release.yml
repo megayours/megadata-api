@@ -30,6 +30,7 @@ jobs:
             git pull
             bun install
             bun db:migrate
+            bun db:seed
             docker compose -f docker-compose.prod.yml down
             docker compose -f docker-compose.prod.yml up -d --build
 

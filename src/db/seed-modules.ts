@@ -102,9 +102,20 @@ const multimediaAssetsSchema = {
                 "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "text/plain",
                 // 2D & 3D Models
-                "model/gltf-binary", "model/gltf+json", "model/obj", "model/stl", "model/3mf", "model/fbx", "model/vrml", "model/x3d+xml", "model/3dml", "application/octet-stream",
+                "model/gltf-binary", // GLB
+                "model/gltf+json",   // GLTF
+                "model/obj",        // OBJ
+                "model/stl",        // STL
+                "model/3mf",        // 3MF
+                "model/fbx",        // FBX
+                "model/vrml",       // VRML
+                "model/x3d+xml",    // X3D
+                "model/3dml",       // 3DML
+                "application/octet-stream",
                 // Multimedia archives
-                "application/zip", "application/x-tar", "application/x-rar-compressed", "application/x-7z-compressed"
+                "application/zip", "application/x-tar", "application/x-rar-compressed", "application/x-7z-compressed",
+                // Extensions for browser compatibility
+                ".glb", ".gltf", ".fbx"
               ].join(", "),
               maxSize: "10MB",
               description: "Upload a file to generate the URI. Supports images, video, audio, documents, 2D/3D models, and multimedia archives."
