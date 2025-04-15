@@ -30,14 +30,19 @@ export class AbstractionChainService {
       args: [collectionId.toString(), id.toString(), JSON.stringify(data)]
     }));
 
+    console.log("Operations", operations);
+
     try {
       await client.signAndSendUniqueTransaction({
         operations,
         signers: [signatureProvider.pubKey]
       }, signatureProvider);
 
+      console.log("Successfully created items on chain");
+
       return ok(true);
     } catch (error) {
+      console.error(`Failed to create items on chain:`, error);
       return err(new Error("Failed to create item on chain", { cause: error }));
     }
   }
