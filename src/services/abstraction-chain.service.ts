@@ -40,7 +40,7 @@ export class AbstractionChainService {
     }
   }
 
-  static async uploadFile(file: Buffer, contentType: string, account: string): Promise<ResultAsync<void, Error>> {
+  static async uploadFile(file: Buffer, contentType: string, account: string, name: string): Promise<ResultAsync<void, Error>> {
     const client = await this.createClient();
 
     const signatureProvider = this.getSignatureProvider();
@@ -50,7 +50,7 @@ export class AbstractionChainService {
         operations: [
           {
             name: "filestorage.store_file",
-            args: [file, contentType, account]
+            args: [file, contentType, account, name]
           }
         ],
         signers: [signatureProvider.pubKey]

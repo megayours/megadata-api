@@ -15,7 +15,8 @@ export const uploadFileRoute = createRoute({
         'application/json': {
           schema: z.object({
             file: z.string().describe('Base64 encoded file content'),
-            contentType: z.string().describe('MIME type of the file')
+            contentType: z.string().describe('MIME type of the file'),
+            name: z.string().describe('Name of the file'),
           })
         }
       }
