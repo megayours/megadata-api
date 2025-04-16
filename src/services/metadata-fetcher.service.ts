@@ -1,4 +1,3 @@
-import { err, ResultAsync } from 'neverthrow';
 import { ethers } from 'ethers';
 import { getRandomRpcUrl } from '../config/rpc';
 
@@ -22,6 +21,7 @@ export class MetadataFetcherService {
     }
 
     const tokenURI = await tokenURIFunction(tokenId);
+    console.log(`[MetadataFetcherService] Fetched tokenURI: ${tokenURI}`);
     if (!tokenURI) {
           throw new Error('Failed to get tokenURI');
         }
