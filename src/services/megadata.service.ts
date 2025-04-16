@@ -356,7 +356,6 @@ export class MegadataService {
    * @returns ResultAsync<{ collection_id: number, id: string, data: any }[], ApiError>
    */
   static async getRandomTokensByAttribute(attribute: string, count: number): Promise<ResultAsync<{ collection_id: number, id: string, data: any }[], ApiError>> {
-    // Use SQL to filter tokens where data ? 'attribute' (Postgres JSONB key existence)
     return ResultAsync.fromPromise(
       db.select({
         collection_id: megadataToken.collection_id,
@@ -364,7 +363,11 @@ export class MegadataService {
         data: megadataToken.data
       })
         .from(megadataToken)
-        .where(sql`${megadataToken.data} ? ${attribute}`)
+        .where(and(
+          sql`${megadataToken.data} ? ${attribute}`,
+          sql`${megadataToken.data} ->> ${attribute} IS NOT NULL`,
+          sql`${megadataToken.data} ->> ${attribute} != ''`
+        ))
         .orderBy(sql`RANDOM()`)
         .limit(count),
       (error) => handleDatabaseError(error)
