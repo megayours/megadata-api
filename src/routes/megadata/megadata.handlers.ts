@@ -119,7 +119,9 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
 
   // Fetch the contract name from RPC
   const contractName = await RpcService.getContractName(body.source, body.type, body.id);
-
+  // Check that it is a valid contract
+  await RpcService.getTotalSupply(body.source, body.type, body.id);
+  
   const account = await AccountService.ensureAccount(accountId);
 
   const collection = await db.insert(megadataCollection)
