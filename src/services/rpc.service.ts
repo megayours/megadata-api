@@ -90,53 +90,6 @@ export class RpcService {
   }
 
   /**
-   * Gets all token IDs for an external collection.
-   * Assumes source=ethereum, type=erc721, and contract implements ERC721Enumerable.
-   */
-  static async getTokenIds(
-    _source: string,
-    _type: string,
-    contractId: string
-  ): Promise<string[]> {
-    const source = _source.toLowerCase();
-    const type = _type.toLowerCase();
-    console.log(`[RpcService] Getting all token IDs via ERC721Enumerable for ${contractId}`);
-
-    if (type !== 'erc721') {
-      throw new ApiError("getTokenIds only supports erc721", 400);
-    }
-
-    try {
-      const provider = this.getProvider(source);
-      const contract = new ethers.Contract(contractId, erc721EnumerableAbi, provider);
-
-      // Check required functions exist
-      if (typeof contract.totalSupply !== 'function' || typeof contract.tokenByIndex !== 'function') {
-        throw new ApiError(`Contract ${contractId} does not support ERC721Enumerable (missing totalSupply or tokenByIndex).`, 400);
-      }
-
-      const supply = await contract.totalSupply();
-      const totalSupply = Number(supply);
-      console.log(`[RpcService] Total supply for enumeration: ${totalSupply}`);
-
-      const tokenIds: string[] = [];
-      for (let i = 0; i < totalSupply; i++) {
-        console.log(`[RpcService] Fetching token ID ${i} of ${totalSupply}`);
-        const tokenId = await contract.tokenByIndex(i);
-        console.log(`[RpcService] Fetched token ID: ${tokenId}`);
-        tokenIds.push(tokenId.toString());
-      }
-
-      console.log(`[RpcService] Fetched ${tokenIds.length} token IDs via enumeration.`);
-      return tokenIds;
-
-    } catch (e: any) {
-      console.error(`[RpcService] Error fetching token IDs via enumeration for ${contractId}:`, e);
-      throw new ApiError(`RPC Error during enumeration: ${e.message ?? 'Unknown error'}`, 500);
-    }
-  }
-
-  /**
    * Gets a batch of token IDs for an external collection using ERC721Enumerable.
    * @param _source Blockchain source (e.g., 'ethereum')
    * @param _type Token type (must be 'erc721')
@@ -160,6 +113,8 @@ export class RpcService {
       throw new ApiError("getTokenIdsBatch only supports erc721", 400);
     }
 
+    let totalSupply: number = 0;
+
     try {
       const provider = this.getProvider(source);
       const contract = new ethers.Contract(contractId, erc721EnumerableAbi, provider);
@@ -170,7 +125,7 @@ export class RpcService {
       }
 
       const supply = await contract.totalSupply();
-      const totalSupply = Number(supply);
+      totalSupply = Number(supply);
       console.log(`[RpcService] Total supply for enumeration: ${totalSupply}`);
 
       const tokenIds: string[] = [];
@@ -185,8 +140,18 @@ export class RpcService {
       return tokenIds;
 
     } catch (e: any) {
-      console.error(`[RpcService] Error fetching token IDs batch via enumeration for ${contractId}:`, e);
-      throw new ApiError(`RPC Error during batch enumeration: ${e.message ?? 'Unknown error'}`, 500);
+      if (totalSupply === 0) {
+        throw new ApiError(`RPC Error during batch enumeration: ${e.message ?? 'Unknown error'}`, 500);
+      }
+
+      // Return a list of indexes that failed
+      console.warn(`[RpcService] Fallbacking to index enumeration for ${contractId}:`, e);
+      const failedIndexes: string[] = [];
+      for (let i = startIndex; i < startIndex + batchSize; i++) {
+        failedIndexes.push(i.toString());
+      }
+
+      return failedIndexes;
     }
   }
 } 
