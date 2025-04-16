@@ -3,13 +3,13 @@ import { ethers } from 'ethers';
 import { getRandomRpcUrl } from '../config/rpc';
 
 export class MetadataFetcherService {
-  static async fetchMetadata(blockchain: string, contract: string, tokenId: string): Promise<ResultAsync<Record<string, unknown>, Error>> {
-    const rpcUrlResult = getRandomRpcUrl(blockchain);
-    if (rpcUrlResult.isErr()) {
-      return err(new Error(`Failed to get RPC URL: ${rpcUrlResult.error.message}`));
+  static async fetchMetadata(blockchain: string, contract: string, tokenId: string): Promise<Record<string, unknown>> {
+    const rpcUrl = getRandomRpcUrl(blockchain);
+    if (!rpcUrl) {
+      throw new Error(`Failed to get RPC URL: ${rpcUrl}`);
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrlResult.value);
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
     const contractInstance = new ethers.Contract(
       contract,
       ['function tokenURI(uint256 tokenId) view returns (string)'],
@@ -18,13 +18,11 @@ export class MetadataFetcherService {
 
     const tokenURIFunction = contractInstance.tokenURI;
     if (!tokenURIFunction) {
-      return err(new Error('Contract does not have tokenURI function'));
+      throw new Error('Contract does not have tokenURI function');
     }
 
-    return ResultAsync.fromPromise(
-      (async () => {
-        const tokenURI = await tokenURIFunction(tokenId);
-        if (!tokenURI) {
+    const tokenURI = await tokenURIFunction(tokenId);
+    if (!tokenURI) {
           throw new Error('Failed to get tokenURI');
         }
 
@@ -37,9 +35,6 @@ export class MetadataFetcherService {
 
         const metadata = (await response.json()) as Record<string, unknown>;
         return { ...metadata, uri: tokenURI, source: blockchain, id: contract };
-      })(),
-      (e) => e as Error
-    );
   }
 
   static mergeMetadata(

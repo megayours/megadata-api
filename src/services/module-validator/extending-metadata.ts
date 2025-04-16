@@ -44,13 +44,8 @@ export class ExtendingMetadataValidator extends BaseValidator {
 
         // Get RPC URL for the source
         const rpcUrlResult = getRandomRpcUrl(source);
-        if (rpcUrlResult.isErr()) {
-          return this.createErrorResult(`Failed to get RPC URL: ${rpcUrlResult.error.message}`);
-        }
 
-        console.log(rpcUrlResult.value);
-
-        const provider = new ethers.JsonRpcProvider(rpcUrlResult.value);
+        const provider = new ethers.JsonRpcProvider(rpcUrlResult);
 
         console.log(provider);
 

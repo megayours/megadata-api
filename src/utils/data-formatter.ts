@@ -12,7 +12,23 @@ export const formatData = (data: Record<string, any>, modules: { id: string, sch
     const filteredDataForModule: Record<string, any> = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key) && moduleProperties.has(key) && data[key]) {
-        filteredDataForModule[key] = data[key];
+        // If the property is an array (like 'attributes'), process its items
+        if (Array.isArray(data[key])) {
+          filteredDataForModule[key] = data[key].map((item: any) => {
+            if (item && typeof item === 'object' && 'value' in item) {
+              const value = item.value;
+              if (typeof value === 'bigint') {
+                return { ...item, value: value.toString() };
+              }
+              if (typeof value === 'number' && !Number.isInteger(value)) {
+                return { ...item, value: value.toString() };
+              }
+            }
+            return item;
+          });
+        } else {
+          filteredDataForModule[key] = data[key];
+        }
       }
     }
 

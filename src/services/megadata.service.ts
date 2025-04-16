@@ -8,7 +8,6 @@ import { eq, and, inArray, sql, getTableColumns } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { formatData } from "../utils/data-formatter";
 import { ApiError } from "@/utils/errors";
-import * as HTTP_STATUS_CODES from "@/lib/http-status-codes";
 
 interface CreateExternalCollectionInput {
   name: string;
@@ -348,5 +347,27 @@ export class MegadataService {
     });
 
     return ec ?? null;
+  }
+
+  /**
+   * Fetch a random set of tokens where the data JSON contains a specified attribute.
+   * @param attribute The attribute key to look for in the data JSON
+   * @param count The number of random tokens to return
+   * @returns ResultAsync<{ collection_id: number, id: string, data: any }[], ApiError>
+   */
+  static async getRandomTokensByAttribute(attribute: string, count: number): Promise<ResultAsync<{ collection_id: number, id: string, data: any }[], ApiError>> {
+    // Use SQL to filter tokens where data ? 'attribute' (Postgres JSONB key existence)
+    return ResultAsync.fromPromise(
+      db.select({
+        collection_id: megadataToken.collection_id,
+        id: megadataToken.id,
+        data: megadataToken.data
+      })
+        .from(megadataToken)
+        .where(sql`${megadataToken.data} ? ${attribute}`)
+        .orderBy(sql`RANDOM()`)
+        .limit(count),
+      (error) => handleDatabaseError(error)
+    );
   }
 } 

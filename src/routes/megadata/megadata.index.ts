@@ -15,6 +15,7 @@ const router = createRouter()
   .openapi(routes.getToken, handlers.getToken)
   .openapi(routes.createToken, handlers.createToken)
   .openapi(routes.updateToken, handlers.updateToken)
-  .openapi(routes.validateTokenPermissions, handlers.validateTokenPermissions);
+  .openapi(routes.validateTokenPermissions, handlers.validateTokenPermissions)
+  .openapi(routes.getRandomTokensByAttribute, handlers.getRandomTokensByAttribute);
 
 export default router;

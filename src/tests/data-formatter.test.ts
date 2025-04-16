@@ -161,5 +161,52 @@ describe("Data Formatter", () => {
         "uri": "https://example.com/uri"
       }
     });
+  });
+
+  it('should convert decimal numbers to strings', () => {
+    const data = {
+      "attributes": [
+        {
+          "trait_type": "Decimal",
+          "value": 123.456
+        },
+        {
+          "trait_type": "BigInt",
+          "value": 12345678901234567890n
+        },
+        {
+          "trait_type": "Number",
+          "value": 123
+        }
+      ]
+    }
+
+    const modules = [
+      {
+        "id": "erc721",
+        "schema": erc721Schema,
+      }
+    ]
+
+    const formattedData = formatData(data, modules);
+
+    expect(formattedData).toEqual({
+      "erc721": {
+        "attributes": [
+          {
+            "trait_type": "Decimal",
+            "value": "123.456"
+          },
+          {
+            "trait_type": "BigInt",
+            "value": "12345678901234567890"
+          },
+          {
+            "trait_type": "Number",
+            "value": 123
+          }
+        ]
+      }
+    })
   })
 });

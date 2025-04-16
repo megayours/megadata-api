@@ -34,9 +34,9 @@ import { ModuleValidatorService } from "@/services/module-validator";
 import type { Module } from "@/services/module-validator/types";
 import { validateDataAgainstSchema } from "@/utils/schema";
 import { SPECIAL_MODULES } from "@/utils/constants";
-import { rpcConfig } from "@/config/rpc";
 import { RpcService } from "@/services/rpc.service";
 import { syncExternalCollection } from "@/workers/external_collection_worker";
+import { tokenConfig } from "@/config/token-config";
 
 const validatorService = new ModuleValidatorService();
 
@@ -118,20 +118,12 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
   }
 
   // Fetch the contract name from RPC
-  const nameResult = await RpcService.getContractName(body.source, body.type, body.id);
-  if (nameResult.isErr()) {
-    // Handle cases where name cannot be fetched (e.g., non-ERC721, RPC error)
-    console.error(`Failed to fetch contract name for ${body.source}/${body.id}:`, nameResult.error);
-    // Return specific error based on nameResult.error.status or context?
-    c.status((nameResult.error.status) || 400);
-    return c.json({ error: nameResult.error.context || "Failed to fetch contract name." }) as any;
-  }
-  const contractName = nameResult.value;
+  const contractName = await RpcService.getContractName(body.source, body.type, body.id);
 
   const account = await AccountService.ensureAccount(accountId);
 
   const collection = await db.insert(megadataCollection)
-    .values({ name: contractName, account_id: account.id, type })
+    .values({ name: contractName, account_id: account.id, type: 'external' })
     .returning()
     .then(result => {
       const record = result[0];
@@ -151,7 +143,7 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
   // Publish the collection immediately
   const publishResult = await MegadataService.publishCollection(collection, [], false);
   if (!publishResult) {
-    return c.json({ error: "Failed to publish collection" }, HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+    throw new ApiError("Failed to publish collection", HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
   }
 
   // Construct the object expected by syncExternalCollection
@@ -377,7 +369,7 @@ export const createToken: AppRouteHandler<CreateToken> = async (c) => {
     );
 
     if (moduleValidationResult.isErr()) {
-      return c.json(ErrorResponseSchema.parse({ error: `Token ${token.id}: ${moduleValidationResult.error.message}` }), HTTP_STATUS_CODES.BAD_REQUEST);
+      return c.json(ErrorResponseSchema.parse({ error: moduleValidationResult.error.message }), HTTP_STATUS_CODES.BAD_REQUEST);
     }
 
     if (!moduleValidationResult.value.isValid) {
@@ -515,12 +507,12 @@ export const validateTokenPermissions: AppRouteHandler<ValidateTokenPermissions>
 
   const tokenResult = await MegadataService.getTokenById(collection_id, token_id);
   if (tokenResult.isErr()) {
-    return c.json(ErrorResponseSchema.parse({ error: tokenResult.error.message }), HTTP_STATUS_CODES.NOT_FOUND);
+    throw new ApiError(tokenResult.error.message, HTTP_STATUS_CODES.NOT_FOUND);
   }
 
   const token = tokenResult.value;
   if (!token) {
-    return c.json(ErrorResponseSchema.parse({ error: "Token not found" }), HTTP_STATUS_CODES.NOT_FOUND);
+    throw new ApiError("Token not found", HTTP_STATUS_CODES.NOT_FOUND);
   }
 
   const modules = token.modules;
@@ -532,7 +524,7 @@ export const validateTokenPermissions: AppRouteHandler<ValidateTokenPermissions>
     modules.map(m => ({
       type: m as Module['type'],
       config: {
-        rpcs: rpcConfig,
+        rpcs: tokenConfig,
         adminList: []
       } as Module['config']
     })),
@@ -546,4 +538,17 @@ export const validateTokenPermissions: AppRouteHandler<ValidateTokenPermissions>
   }
 
   return c.json(moduleValidationResult.value, HTTP_STATUS_CODES.OK);
+};
+
+export const getRandomTokensByAttribute: AppRouteHandler<import("./route-types").GetRandomTokensByAttribute> = async (c) => {
+  const { attribute, count } = c.req.valid('query');
+
+  const result = await MegadataService.getRandomTokensByAttribute(attribute, count);
+  if (result.isOk()) {
+    const tokens = result.value;
+    return c.json(tokens, HTTP_STATUS_CODES.OK);
+  } else {
+    const err = result.error;
+    return c.json({ error: err.message }, HTTP_STATUS_CODES.BAD_REQUEST);
+  }
 };

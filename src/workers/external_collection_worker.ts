@@ -2,13 +2,12 @@ import { db } from "../db";
 import { externalCollection, megadataCollection, megadataToken, module } from "../db/schema";
 import { handleDatabaseError } from "../db/helpers";
 import type { ExternalCollection, MegadataCollection, Module, NewMegadataToken } from "../db";
-import { err, ok, ResultAsync, Err } from "neverthrow";
+import { err, ok, ResultAsync } from "neverthrow";
 import { eq, isNull, or, lt, sql, inArray } from "drizzle-orm"; // Add inArray back
 import { AbstractionChainService } from "../services/abstraction-chain.service"; // Assuming this handles publishing
 import { MegadataService } from "../services/megadata.service"; // Needed for token creation/publishing logic?
 import { RpcService } from "../services/rpc.service"; // Placeholder - To be created
 import { MetadataFetcherService } from "../services/metadata-fetcher.service"; // Assuming this can fetch external metadata
-import type { Error } from "../types/error";
 import cron from 'node-cron';
 import { formatData } from "../utils/data-formatter";
 import { SPECIAL_MODULES } from "../utils/constants";
@@ -50,18 +49,13 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
   console.log(`Syncing external collection: ${extCollection.collection_id} (${extCollection.source}/${extCollection.id})`);
 
   try {
-    // 1. Get all token IDs from the external source (RPC)
-    const externalIdsResult = await RpcService.getTokenIds(
+    // 1. Get total supply from the external source (RPC)
+    const totalSupply = await RpcService.getTotalSupply(
       extCollection.source as string,
       extCollection.type as string,
       extCollection.id as string
     );
-    if (externalIdsResult.isErr()) {
-      console.error(`  Failed to get external token IDs:`, externalIdsResult.error);
-      return err(externalIdsResult.error); // Cannot proceed without external IDs
-    }
-    const externalIds = new Set(externalIdsResult.value);
-    console.log(`  Found ${externalIds.size} token IDs externally.`);
+    console.log(`  Total supply externally: ${totalSupply}`);
 
     // 2. Get all existing token IDs from our database for this collection
     const existingTokensResult = await ResultAsync.fromPromise(
@@ -77,83 +71,75 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
     const existingIds = new Set(existingTokensResult.value.map(t => t.id));
     console.log(`  Found ${existingIds.size} token IDs in database.`);
 
-    // 3. Determine missing token IDs (present externally, missing internally)
-    const missingIds: string[] = [];
-    for (const extId of externalIds) {
-      if (!existingIds.has(extId)) {
-        missingIds.push(extId);
-      }
+    // 3. Get the count of tokens already in the DB for this collection (for batching start)
+    const countResult = await ResultAsync.fromPromise(
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(megadataToken)
+        .where(eq(megadataToken.collection_id, extCollection.collection_id))
+        .then(result => result[0]?.count ?? 0),
+      handleDatabaseError
+    );
+    if (countResult.isErr()) {
+      console.error(`  Failed to get token count from DB:`, countResult.error);
+      return err(countResult.error);
     }
+    let start = countResult.value;
+    console.log(`  Starting batch sync from index: ${start}`);
 
-    // 4. Determine removed token IDs (present internally, missing externally)
-    const removedIds: string[] = [];
-    for (const existingId of existingIds) {
-      if (!externalIds.has(existingId)) {
-        removedIds.push(existingId);
-      }
-    }
-
-    // --- Handle Missing Tokens ---
-    if (missingIds.length === 0) {
-      console.log("  No new tokens to sync.");
-      // No need to check removedIds again here, already handled above
-      return ok(true); // Sync complete for now
-    }
-
-    console.log(`  Found ${missingIds.length} missing tokens to create.`);
-
-    // --- Loop through only MISSING IDs ---
     let createdCount = 0;
     let publishedCount = 0;
-    const tokensToCreate: NewMegadataToken[] = [];
+    let processedCount = 0;
 
-    for (const tokenId of missingIds) {
-      console.log(`  Fetching metadata for missing token ID: ${tokenId}`);
-      // Fetch metadata for the missing token ID
-      const metadataResult = await MetadataFetcherService.fetchMetadata(
+    // 4. Iterate in batches to fetch token IDs and process them
+    for (; start < totalSupply; start += TOKEN_BATCH_SIZE) {
+      const batchTokenIds = await RpcService.getTokenIdsBatch(
         extCollection.source as string,
+        extCollection.type as string,
         extCollection.id as string,
-        tokenId
+        start,
+        TOKEN_BATCH_SIZE
       );
-      if (metadataResult.isErr()) {
-        console.error(`    Failed to fetch metadata for token ${tokenId}:`, metadataResult.error);
-        continue; // Skip this token, maybe retry later?
+      console.log(`  Fetched batch of ${batchTokenIds.length} token IDs (start: ${start})`);
+
+      // Filter out token IDs that already exist in the DB
+      const missingIds = batchTokenIds.filter(tokenId => !existingIds.has(tokenId));
+      if (missingIds.length === 0) {
+        console.log(`  No new tokens to sync in this batch.`);
+        processedCount += batchTokenIds.length;
+        continue;
       }
-      const metadata = metadataResult.value;
-      console.log(`    Metadata fetched for ${tokenId}`); // Less verbose logging
 
-      tokensToCreate.push({
-        id: tokenId,
-        collection_id: extCollection.collection_id,
-        data: metadata,
-        is_published: true,
-        modules: [extCollection.type, SPECIAL_MODULES.EXTENDING_METADATA, SPECIAL_MODULES.EXTENDING_COLLECTION]
-      });
+      // Fetch metadata for missing tokens in parallel
+      const tokensToCreate: NewMegadataToken[] = await Promise.all(
+        missingIds.map(async (tokenId) => {
+          console.log(`  Fetching metadata for missing token ID: ${tokenId}`);
+          const metadata = await MetadataFetcherService.fetchMetadata(
+            extCollection.source as string,
+            extCollection.id as string,
+            tokenId
+          );
+          return {
+            id: tokenId,
+            collection_id: extCollection.collection_id,
+            data: metadata,
+            is_published: true,
+            modules: [extCollection.type, SPECIAL_MODULES.EXTENDING_METADATA, SPECIAL_MODULES.EXTENDING_COLLECTION]
+          };
+        })
+      );
 
-      // Batch creation/publishing logic
-      if (tokensToCreate.length >= TOKEN_BATCH_SIZE) {
-        console.log(`  Processing batch of ${tokensToCreate.length} tokens...`);
+      // Create and publish tokens in this batch
+      if (tokensToCreate.length > 0) {
         const batchResult = await processTokenBatch(extCollection.collection_id, tokensToCreate);
         if (batchResult.isOk()) {
           createdCount += batchResult.value.created;
           publishedCount += batchResult.value.published;
         }
-        // Clear batch even if processing failed for some
-        tokensToCreate.length = 0;
       }
+      processedCount += batchTokenIds.length;
     }
 
-    // Process any remaining tokens in the last batch
-    if (tokensToCreate.length > 0) {
-      console.log(`  Processing final batch of ${tokensToCreate.length} tokens...`);
-      const batchResult = await processTokenBatch(extCollection.collection_id, tokensToCreate);
-        if (batchResult.isOk()) {
-          createdCount += batchResult.value.created;
-          publishedCount += batchResult.value.published;
-        }
-    }
-
-    console.log(`  Sync finished for collection ${extCollection.collection_id}. Created: ${createdCount}, Published: ${publishedCount}`);
+    console.log(`  Sync finished for collection ${extCollection.collection_id}. Created: ${createdCount}, Published: ${publishedCount}, Processed: ${processedCount}`);
     return ok(true);
 
   } catch (error) {

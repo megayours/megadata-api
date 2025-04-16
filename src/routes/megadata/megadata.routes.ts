@@ -380,9 +380,37 @@ export const validateTokenPermissions = createRoute({
       description: 'Validation result'
     },
     [HTTP_STATUS_CODES.UNAUTHORIZED]: error('Unauthorized'),
-    [HTTP_STATUS_CODES.NOT_FOUND]: error('Token not found'),
-    [HTTP_STATUS_CODES.BAD_REQUEST]: error('Invalid request parameters'),
     [HTTP_STATUS_CODES.FORBIDDEN]: error('Access denied'),
+    [HTTP_STATUS_CODES.BAD_REQUEST]: error('Bad Request'),
+    [HTTP_STATUS_CODES.NOT_FOUND]: error('Not Found'),
+  }
+});
+
+export const getRandomTokensByAttribute = createRoute({
+  method: 'get',
+  path: '/tokens/random',
+  tags: ['Tokens'],
+  summary: 'Get random tokens by attribute',
+  request: {
+    query: z.object({
+      attribute: z.string(),
+      count: z.string().transform(Number).refine((val) => val > 0, { message: 'Count must be greater than 0' })
+    })
+  },
+  responses: {
+    [HTTP_STATUS_CODES.OK]: {
+      content: {
+        'application/json': {
+          schema: z.array(z.object({
+            collection_id: z.number(),
+            id: z.string(),
+            data: z.record(z.any())
+          }))
+        }
+      },
+      description: 'Random tokens with the specified attribute'
+    },
+    [HTTP_STATUS_CODES.BAD_REQUEST]: error('Invalid request parameters')
   }
 });
 
