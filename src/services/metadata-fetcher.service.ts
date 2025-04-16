@@ -27,6 +27,7 @@ export class MetadataFetcherService {
         }
 
         const metadataUrl = `${process.env.NEXT_PUBLIC_MEGADATA_API_URI}/ext/${tokenURI}`;
+        console.log(`[MetadataFetcherService] Fetching metadata from ${metadataUrl}`);
         console.log(`Fetching metadata from ${metadataUrl}`);
         const response = await fetch(metadataUrl);
         if (!response.ok) {
