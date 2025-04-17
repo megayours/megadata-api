@@ -14,7 +14,6 @@ import { SPECIAL_MODULES } from "../utils/constants";
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // Check once per hour
 const BATCH_SIZE = 10; // Process N collections per run to avoid overwhelming resources
-const TOKEN_BATCH_SIZE = 10; // Create/publish tokens in batches
 
 // Cron schedule (e.g., every hour at the start of the hour)
 // For testing, you might use '*/5 * * * *' (every 5 minutes)
@@ -110,7 +109,7 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
         console.log(`  Token ${tokenId} already exists in DB, skipping.`);
         continue;
       }
-      
+
       const tokenUri = await contractFetchers.fetchTokenURI(tokenId);
       if (tokenUri === null) {
         console.log(`  Token ${tokenId} does not have a tokenURI, skipping.`);
@@ -172,33 +171,26 @@ async function processTokenBatch(collectionId: number, tokens: NewMegadataToken[
   }
 
   console.log(`    Publishing batch of ${createdBatch.length} tokens...`);
-  const publishResult = await AbstractionChainService.createItems(collectionId, createdBatch.map(t => ({ id: t.id, data: formatData(t.data as Record<string, any>, modulesResult.value) })));
+  await AbstractionChainService.createItems(collectionId, createdBatch.map(t => ({ id: t.id, data: formatData(t.data as Record<string, any>, modulesResult.value) })));
 
-  if (publishResult.isErr()) {
-    console.error(`    Error publishing batch of tokens:`, publishResult.error);
-    // Tokens were created but not published. Worker might retry later, or manual intervention needed.
-    // Return success for creation part, but indicate 0 published.
-    return ok({ created: createdCount, published: 0 });
+  // 3. Update is_published status
+  const updateResult = await ResultAsync.fromPromise(
+    db.update(megadataToken)
+      .set({ is_published: true })
+      .where(inArray(megadataToken.row_id, createdBatch.map(t => t.row_id)))
+      .then(() => true),
+    handleDatabaseError
+  );
+
+  if (updateResult.isErr()) {
+    console.error(`    Error updating is_published status for batch:`, updateResult.error);
+    // Published, but status update failed. Critical inconsistency.
+    // Return success for creation, but 0 published for safety? Or specific error?
+    return ok({ created: createdCount, published: 0 }); // Treat as not published for safety
   } else {
-    // 3. Update is_published status
-    const updateResult = await ResultAsync.fromPromise(
-        db.update(megadataToken)
-          .set({ is_published: true })
-          .where(inArray(megadataToken.row_id, createdBatch.map(t => t.row_id)))
-          .then(() => true),
-        handleDatabaseError
-      );
-
-    if (updateResult.isErr()) {
-        console.error(`    Error updating is_published status for batch:`, updateResult.error);
-        // Published, but status update failed. Critical inconsistency.
-        // Return success for creation, but 0 published for safety? Or specific error?
-        return ok({ created: createdCount, published: 0 }); // Treat as not published for safety
-    } else {
-        publishedCount = createdBatch.length;
-        console.log(`    Successfully published ${publishedCount} tokens.`);
-        return ok({ created: createdCount, published: publishedCount });
-    }
+    publishedCount = createdBatch.length;
+    console.log(`    Successfully published ${publishedCount} tokens.`);
+    return ok({ created: createdCount, published: publishedCount });
   }
 }
 
@@ -236,8 +228,8 @@ async function runWorker() {
       const megaCol = row.megadata_collection;
 
       if (!extCol || !megaCol) {
-          console.error("Skipping row due to missing data after join:", row);
-          continue;
+        console.error("Skipping row due to missing data after join:", row);
+        continue;
       }
 
       const syncResult = await syncExternalCollection({ ...extCol, megadata: megaCol });
@@ -247,11 +239,11 @@ async function runWorker() {
       // to avoid retrying constantly failing collections too quickly.
       // Consider adding a failure count or specific error state if needed.
       await ResultAsync.fromPromise(
-          db.update(externalCollection)
-            .set({ last_checked: updateTimestamp })
-            .where(eq(externalCollection.collection_id, extCol.collection_id)),
-          handleDatabaseError
-        ).mapErr(e => console.error(`Failed to update last_checked for ${extCol.collection_id}:`, e));
+        db.update(externalCollection)
+          .set({ last_checked: updateTimestamp })
+          .where(eq(externalCollection.collection_id, extCol.collection_id)),
+        handleDatabaseError
+      ).mapErr(e => console.error(`Failed to update last_checked for ${extCol.collection_id}:`, e));
 
       if (syncResult.isErr()) {
         console.error(`Finished syncing collection ${extCol.collection_id} with error.`);

@@ -11,7 +11,7 @@ export class AbstractionChainService {
 
     return result.links || [];
   }
-  
+
   static async createCollection(account: string, id: number, name: string): Promise<void> {
     console.log("Creating collection on chain for collection", account, id, name);
     const client = await this.createClient();
@@ -59,19 +59,10 @@ export class AbstractionChainService {
 
     console.log("Operations", operations);
 
-    try {
-      await client.signAndSendUniqueTransaction({
-        operations,
-        signers: [signatureProvider.pubKey]
-      }, signatureProvider);
-
-      console.log("Successfully created items on chain");
-
-      return ok(true);
-    } catch (error) {
-      console.error(`Failed to create items on chain:`, error);
-      return err(new Error("Failed to create item on chain", { cause: error }));
-    }
+    await client.signAndSendUniqueTransaction({
+      operations,
+      signers: [signatureProvider.pubKey]
+    }, signatureProvider);
   }
 
   static async uploadFile(file: Buffer, contentType: string, account: string, name: string): Promise<ResultAsync<void, Error>> {
