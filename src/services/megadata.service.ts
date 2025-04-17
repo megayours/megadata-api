@@ -229,7 +229,14 @@ export class MegadataService {
       }
 
       if (token.is_published) {
-        await AbstractionChainService.updateItem(collectionId, tokenId, data);
+        const modulesWithSchema = await db.query.module.findMany({
+          where: inArray(module.id, modules ?? []),
+          columns: {
+            id: true,
+            schema: true
+          }
+        });
+        await AbstractionChainService.updateItem(collectionId, tokenId, formatData(data, modulesWithSchema));
       }
 
       // Update the token data
