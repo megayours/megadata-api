@@ -16,7 +16,8 @@ mock.module('../../services/abstraction-chain.service', () => ({
   AbstractionChainService: {
     createCollection: () => ok(true),
     createItems: () => ok(true),
-    uploadFile: () => ok(undefined)
+    uploadFile: () => ok(undefined),
+    getAccountLinks: () => ok(['0x1234567890123456789012345678901234567890'])
   }
 }));
 

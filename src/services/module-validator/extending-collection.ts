@@ -2,17 +2,17 @@ import { ResultAsync } from 'neverthrow';
 import { ethers } from 'ethers';
 import type { Module, ValidationResult } from './types';
 import { BaseValidator } from './base-validator';
-import { getRandomRpcUrl } from '../../config/rpc';
 import { ADMIN_LIST } from '../../config/admin';
 import erc721Abi from '../../utils/abi/erc721.json';
 import { SPECIAL_MODULES } from '../../utils/constants';
+import { RpcService } from '../rpc.service';
 
 export class ExtendingCollectionValidator extends BaseValidator {
   validate(
     module: Module,
     tokenId: string,
     metadata: Record<string, unknown>,
-    walletAddress: string
+    accounts: string[]
   ): ResultAsync<ValidationResult, Error> {
     return ResultAsync.fromPromise(
       (async () => {
@@ -21,8 +21,8 @@ export class ExtendingCollectionValidator extends BaseValidator {
         }
 
         // Check if wallet is in admin list
-        if (ADMIN_LIST.includes(walletAddress)) {
-          console.log(`Wallet ${walletAddress} is in admin list`);
+        if (accounts.some(account => ADMIN_LIST.includes(account))) {
+          console.log(`Wallet ${accounts} is in admin list`);
           return this.createSuccessResult();
         }
 
@@ -33,13 +33,7 @@ export class ExtendingCollectionValidator extends BaseValidator {
         }
 
         // Get RPC URL for the source
-        const rpcUrlResult = getRandomRpcUrl(source);
-        if (rpcUrlResult.isErr()) {
-          console.log(`Failed to get RPC URL: ${rpcUrlResult.error.message}`);
-          return this.createErrorResult(`Failed to get RPC URL: ${rpcUrlResult.error.message}`);
-        }
-
-        const provider = new ethers.JsonRpcProvider(rpcUrlResult.value);
+        const provider = RpcService.getProvider(source);
 
         const contractAddress = metadata.id as string;
         
@@ -65,8 +59,8 @@ export class ExtendingCollectionValidator extends BaseValidator {
         }
 
         const owner = await ownerFunction();
-        if (owner.toLowerCase() === walletAddress.toLowerCase()) {
-          console.log(`Wallet ${walletAddress} is the owner of the contract`);
+        if (accounts.some(account => owner.toLowerCase() === account.toLowerCase())) {
+          console.log(`Wallet ${accounts} is the owner of the contract`);
           return this.createSuccessResult();
         }
 
@@ -80,8 +74,8 @@ export class ExtendingCollectionValidator extends BaseValidator {
 
           try {
             const tokenOwner = await ownerOfFunction(tokenId);
-            if (tokenOwner.toLowerCase() === walletAddress.toLowerCase()) {
-              console.log(`Wallet ${walletAddress} is the owner of the token`);
+            if (accounts.some(account => tokenOwner.toLowerCase() === account.toLowerCase())) {
+              console.log(`Wallet ${accounts} is the owner of the token`);
               return this.createSuccessResult();
             }
           } catch (error) {

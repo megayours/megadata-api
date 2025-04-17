@@ -2,6 +2,16 @@ import { createClient, newSignatureProvider } from "postchain-client";
 import { err, ok, ResultAsync } from "neverthrow";
 
 export class AbstractionChainService {
+  static async getAccountLinks(account: string): Promise<string[]> {
+    const client = await this.createClient();
+
+    const result = await client.query<{ links: string[] }>("account_links.get_account_links", {
+      search: account
+    });
+
+    return result.links || [];
+  }
+  
   static async createCollection(account: string, id: number, name: string): Promise<void> {
     console.log("Creating collection on chain for collection", account, id, name);
     const client = await this.createClient();
@@ -13,6 +23,23 @@ export class AbstractionChainService {
         {
           name: "megadata.create_collection",
           args: [account, id.toString(), name]
+        }
+      ],
+      signers: [signatureProvider.pubKey]
+    }, signatureProvider);
+  }
+
+  static async updateItem(collectionId: number, itemId: string, data: Record<string, any>) {
+    console.log("Updating item on chain for collection", collectionId, itemId, data);
+    const client = await this.createClient();
+
+    const signatureProvider = this.getSignatureProvider();
+
+    await client.signAndSendUniqueTransaction({
+      operations: [
+        {
+          name: "megadata.update_item",
+          args: [collectionId.toString(), itemId.toString(), JSON.stringify(data)]
         }
       ],
       signers: [signatureProvider.pubKey]

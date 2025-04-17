@@ -17,7 +17,7 @@ export class ModuleValidatorService {
     modules: Module[],
     tokenId: string,
     metadata: Record<string, unknown>,
-    walletAddress: string
+    accounts: string[]
   ): ResultAsync<ValidationResult, Error> {
     return ResultAsync.fromPromise(
       (async () => {
@@ -29,7 +29,7 @@ export class ModuleValidatorService {
           }
 
           try {
-            const result = await validator.validate(module, tokenId, metadata, walletAddress, modules);
+            const result = await validator.validate(module, tokenId, metadata, accounts, modules);
             if (result.isErr()) {
               throw result.error;
             }

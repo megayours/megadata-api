@@ -12,7 +12,7 @@ export class ExtendingMetadataValidator extends BaseValidator {
     module: Module,
     tokenId: string,
     metadata: Record<string, unknown>,
-    walletAddress: string,
+    accounts: string[],
     modules: Module[] = []
   ): ResultAsync<ValidationResult, Error> {
     return ResultAsync.fromPromise(
@@ -28,7 +28,7 @@ export class ExtendingMetadataValidator extends BaseValidator {
         }
         
         // Check if wallet is in admin list
-        if (ADMIN_LIST.includes(walletAddress)) {
+        if (accounts.some(account => ADMIN_LIST.includes(account))) {
           return this.createSuccessResult();
         }
 
@@ -62,14 +62,15 @@ export class ExtendingMetadataValidator extends BaseValidator {
         try {
           const owner = await contractInstance.ownerOf(tokenId);
           console.log(`Owner: `, owner);
-          if (owner.toLowerCase() === walletAddress.toLowerCase()) {
+          if (accounts.some(account => owner.toLowerCase() === account.toLowerCase())) {
             console.log(`Returning success`)
             return this.createSuccessResult();
           }
 
           // Check if the wallet is an approved operator
-          const isApproved = await contractInstance.isApprovedForAll(owner, walletAddress);
-          if (isApproved) {
+          const isApprovedPromises = accounts.map(account => contractInstance.isApprovedForAll(owner, account));
+          const isApprovedResults = await Promise.all(isApprovedPromises);
+          if (isApprovedResults.some(isApproved => isApproved)) {
             return this.createSuccessResult();
           }
 

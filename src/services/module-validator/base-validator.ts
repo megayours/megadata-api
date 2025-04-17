@@ -6,7 +6,7 @@ export abstract class BaseValidator implements ModuleValidator {
     module: Module,
     tokenId: string,
     metadata: Record<string, unknown>,
-    walletAddress: string
+    accounts: string[]
   ): ResultAsync<ValidationResult, Error>;
 
   protected createSuccessResult(): ValidationResult {

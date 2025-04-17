@@ -38,6 +38,7 @@ import { syncExternalCollection } from "@/workers/external_collection_worker";
 import { tokenConfig } from "@/config/token-config";
 import { getContractFetchers } from "@/services/metadata-fetcher.service";
 import { HTTPException } from 'hono/http-exception'
+import { AbstractionChainService } from "@/services/abstraction-chain.service";
 
 const validatorService = new ModuleValidatorService();
 
@@ -371,12 +372,14 @@ export const createToken: AppRouteHandler<CreateToken> = async (c) => {
       return c.json(ErrorResponseSchema.parse({ error: `Token ${token.id}: Invalid data` }), HTTP_STATUS_CODES.BAD_REQUEST);
     }
 
+    const accountLinks = await AbstractionChainService.getAccountLinks(walletAddress);
+
     // Validate modules
     const moduleValidationResult = await validatorService.validate(
       modules.value.map(m => ({ type: m.id as Module['type'], config: m.schema as Module['config'] })),
       token.id,
       token.data as Record<string, unknown>,
-      walletAddress
+      [...accountLinks, walletAddress]
     );
 
     if (moduleValidationResult.isErr()) {
@@ -443,11 +446,13 @@ export const updateToken: AppRouteHandler<UpdateToken> = async (c) => {
     return c.json(ErrorResponseSchema.parse({ error: "Invalid data" }), HTTP_STATUS_CODES.BAD_REQUEST);
   }
 
+  const accountLinks = await AbstractionChainService.getAccountLinks(walletAddress);
+
   const moduleValidationResult = await validatorService.validate(
     modulesResult.value.map(m => ({ type: m.id as Module['type'], config: m.schema as Module['config'] })),
     token_id,
     data as Record<string, unknown>,
-    walletAddress
+    [...accountLinks, walletAddress]
   );
 
   if (moduleValidationResult.isErr()) {
@@ -458,14 +463,10 @@ export const updateToken: AppRouteHandler<UpdateToken> = async (c) => {
     return c.json(ErrorResponseSchema.parse({ error: moduleValidationResult.value.error }), HTTP_STATUS_CODES.FORBIDDEN);
   }
 
-  const result = await MegadataService.updateToken(collection_id, token_id, validationResult.value, modules);
-  if (result.isErr()) {
-    return c.json(ErrorResponseSchema.parse({ error: result.error.message }), HTTP_STATUS_CODES.NOT_FOUND);
-  }
+  const token = await MegadataService.updateToken(collection_id, token_id, validationResult.value, modules);
 
-  const token = result.value;
   if (!token) {
-    return c.json(ErrorResponseSchema.parse({ error: "Token not found" }), HTTP_STATUS_CODES.NOT_FOUND);
+    throw new HTTPException(HTTP_STATUS_CODES.NOT_FOUND, { message: "Token not found" });
   }
 
   return c.json(MegadataTokenResponseSchema.parse(token), HTTP_STATUS_CODES.OK);
@@ -531,6 +532,8 @@ export const validateTokenPermissions: AppRouteHandler<ValidateTokenPermissions>
     return c.json({ isValid: true }, HTTP_STATUS_CODES.OK);
   }
 
+  const accountLinks = await AbstractionChainService.getAccountLinks(walletAddress);
+
   const moduleValidationResult = await validatorService.validate(
     modules.map(m => ({
       type: m as Module['type'],
@@ -541,7 +544,7 @@ export const validateTokenPermissions: AppRouteHandler<ValidateTokenPermissions>
     })),
     token_id,
     token.data as Record<string, unknown>,
-    walletAddress
+    [...accountLinks, walletAddress]
   );
 
   if (moduleValidationResult.isErr()) {

@@ -200,55 +200,56 @@ export class MegadataService {
     );
   }
 
-  static async updateToken(collectionId: number, tokenId: string, data: any, modules?: string[]): Promise<ResultAsync<MegadataToken | null, ApiError>> {
-    return ResultAsync.fromPromise<MegadataToken | null, ApiError>(
-      db.transaction(async (tx) => {
-        // Get the existing token
-        const [token] = await tx.select()
-          .from(megadataToken)
-          .where(and(
-            eq(megadataToken.id, tokenId),
-            eq(megadataToken.collection_id, collectionId)
-          ));
+  static async updateToken(collectionId: number, tokenId: string, data: any, modules?: string[]): Promise<MegadataToken | null> {
+    return db.transaction(async (tx) => {
+      // Get the existing token
+      const [token] = await tx.select()
+        .from(megadataToken)
+        .where(and(
+          eq(megadataToken.id, tokenId),
+          eq(megadataToken.collection_id, collectionId)
+        ));
 
-        if (!token) {
-          return null;
-        }
+      if (!token) {
+        return null;
+      }
 
-        // If modules are provided, update the token modules
-        if (modules?.length) {
-          // Update token modules
-          await tx.delete(tokenModule)
-            .where(eq(tokenModule.token_row_id, token.row_id));
+      // If modules are provided, update the token modules
+      if (modules?.length) {
+        // Update token modules
+        await tx.delete(tokenModule)
+          .where(eq(tokenModule.token_row_id, token.row_id));
 
-          await tx.insert(tokenModule)
-            .values(modules.map(moduleId => ({
-              id: nanoid(),
-              token_row_id: token.row_id,
-              module_id: moduleId
-            })));
-        }
+        await tx.insert(tokenModule)
+          .values(modules.map(moduleId => ({
+            id: nanoid(),
+            token_row_id: token.row_id,
+            module_id: moduleId
+          })));
+      }
 
-        // Update the token data
-        const [updatedToken] = await tx.update(megadataToken)
-          .set({
-            data: data,
-            updated_at: Math.floor(Date.now() / 1000)
-          })
-          .where(and(
-            eq(megadataToken.id, tokenId),
-            eq(megadataToken.collection_id, collectionId)
-          ))
-          .returning();
+      if (token.is_published) {
+        await AbstractionChainService.updateItem(collectionId, tokenId, data);
+      }
 
-        if (!updatedToken) {
-          return null;
-        }
+      // Update the token data
+      const [updatedToken] = await tx.update(megadataToken)
+        .set({
+          data: data,
+          updated_at: Math.floor(Date.now() / 1000)
+        })
+        .where(and(
+          eq(megadataToken.id, tokenId),
+          eq(megadataToken.collection_id, collectionId)
+        ))
+        .returning();
 
-        return { ...updatedToken, modules: modules ?? [] };
-      }),
-      (error) => handleDatabaseError(error)
-    );
+      if (!updatedToken) {
+        return null;
+      }
+
+      return { ...updatedToken, modules: modules ?? [] };
+    });
   }
 
   static async deleteToken(collectionId: number, tokenId: string): Promise<ResultAsync<MegadataToken | null, ApiError>> {
