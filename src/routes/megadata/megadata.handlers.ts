@@ -426,14 +426,6 @@ export const updateToken: AppRouteHandler<UpdateToken> = async (c) => {
     return c.json(ErrorResponseSchema.parse({ error: "Collection not found" }), HTTP_STATUS_CODES.NOT_FOUND);
   }
 
-  if (collection.type === 'external') {
-    return c.json(ErrorResponseSchema.parse({ error: "Tokens in an external collection cannot be manually updated." }), HTTP_STATUS_CODES.METHOD_NOT_ALLOWED);
-  }
-
-  if (collection.account_id !== walletAddress) {
-    return c.json(ErrorResponseSchema.parse({ error: "Forbidden" }), HTTP_STATUS_CODES.FORBIDDEN);
-  }
-
   const modulesResult = await getModules(modules);
   if (modulesResult.isErr()) {
     return c.json(ErrorResponseSchema.parse({ error: modulesResult.error.message }), HTTP_STATUS_CODES.BAD_REQUEST);
