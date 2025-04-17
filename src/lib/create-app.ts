@@ -5,7 +5,8 @@ import type { Schema } from "hono";
 import { cors } from "hono/cors";
 import { requestId } from "hono/request-id";
 import type { AppBindings, AppOpenAPI } from "./types";
-
+import { HTTPException } from "hono/http-exception";
+import * as HTTP_STATUS_CODES from "@/lib/http-status-codes";
 export function createRouter() {
   return new OpenAPIHono<AppBindings>({
     strict: false,
@@ -24,6 +25,14 @@ export default function createApp() {
     }
     return authMiddleware(c, next);
   });
+
+  app.onError((err, c) => {
+    if (err instanceof HTTPException) {
+      return c.json({ error: err.message }, err.status);
+    }
+    return c.json({ error: err.message }, HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+  });
+
   return app;
 }
 

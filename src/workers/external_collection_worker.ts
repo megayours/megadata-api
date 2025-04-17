@@ -7,7 +7,7 @@ import { eq, isNull, or, lt, sql, inArray } from "drizzle-orm"; // Add inArray b
 import { AbstractionChainService } from "../services/abstraction-chain.service"; // Assuming this handles publishing
 import { MegadataService } from "../services/megadata.service"; // Needed for token creation/publishing logic?
 import { RpcService } from "../services/rpc.service"; // Placeholder - To be created
-import { MetadataFetcherService } from "../services/metadata-fetcher.service"; // Assuming this can fetch external metadata
+import { getContractFetchers, MetadataFetcherService } from "../services/metadata-fetcher.service"; // Assuming this can fetch external metadata
 import cron from 'node-cron';
 import { formatData } from "../utils/data-formatter";
 import { SPECIAL_MODULES } from "../utils/constants";
@@ -49,12 +49,18 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
   console.log(`Syncing external collection: ${extCollection.collection_id} (${extCollection.source}/${extCollection.id})`);
 
   try {
+    // Get the contract fechers
+    const contractFetchers = await getContractFetchers(RpcService.getProvider(extCollection.source as string), extCollection.id as string);
+    if (contractFetchers.fetchTotalSupply === null) {
+      console.log(`  Contract does not support totalSupply(), skipping sync.`);
+      return ok(true);
+    } else if (contractFetchers.fetchTokenURI === null) {
+      console.log(`  Contract does not support tokenURI(), skipping sync.`);
+      return ok(true);
+    }
+
     // 1. Get total supply from the external source (RPC)
-    const totalSupply = await RpcService.getTotalSupply(
-      extCollection.source as string,
-      extCollection.type as string,
-      extCollection.id as string
-    );
+    const totalSupply = await contractFetchers.fetchTotalSupply();
     console.log(`  Total supply externally: ${totalSupply}`);
 
     // 2. Get all existing token IDs from our database for this collection
@@ -91,52 +97,37 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
     let processedCount = 0;
 
     // 4. Iterate in batches to fetch token IDs and process them
-    for (; start < totalSupply; start += TOKEN_BATCH_SIZE) {
-      const batchTokenIds = await RpcService.getTokenIdsBatch(
-        extCollection.source as string,
-        extCollection.type as string,
-        extCollection.id as string,
-        start,
-        TOKEN_BATCH_SIZE
-      );
-      console.log(`  Fetched batch of ${batchTokenIds.length} token IDs (start: ${start})`);
+    for (; start < totalSupply; start += 1) {
+      let tokenId: string | null = null;
+      if (contractFetchers.fetchTokenByIndex !== null) {
+        tokenId = await contractFetchers.fetchTokenByIndex(start);
+      } else {
+        tokenId = start.toString();
+      }
 
       // Filter out token IDs that already exist in the DB
-      const missingIds = batchTokenIds.filter(tokenId => !existingIds.has(tokenId));
-      if (missingIds.length === 0) {
-        console.log(`  No new tokens to sync in this batch.`);
-        processedCount += batchTokenIds.length;
+      if (existingIds.has(tokenId)) {
+        console.log(`  Token ${tokenId} already exists in DB, skipping.`);
+        continue;
+      }
+      
+      const tokenUri = await contractFetchers.fetchTokenURI(tokenId);
+      if (tokenUri === null) {
+        console.log(`  Token ${tokenId} does not have a tokenURI, skipping.`);
         continue;
       }
 
-      // Fetch metadata for missing tokens in parallel
-      const tokensToCreate: NewMegadataToken[] = await Promise.all(
-        missingIds.map(async (tokenId) => {
-          console.log(`  Fetching metadata for missing token ID: ${tokenId}`);
-          const metadata = await MetadataFetcherService.fetchMetadata(
-            extCollection.source as string,
-            extCollection.id as string,
-            tokenId
-          );
-          return {
-            id: tokenId,
-            collection_id: extCollection.collection_id,
-            data: metadata,
-            is_published: true,
-            modules: [extCollection.type, SPECIAL_MODULES.EXTENDING_METADATA, SPECIAL_MODULES.EXTENDING_COLLECTION]
-          };
-        })
-      );
+      const metadata = await MetadataFetcherService.fetchMetadata(tokenUri);
 
-      // Create and publish tokens in this batch
-      if (tokensToCreate.length > 0) {
-        const batchResult = await processTokenBatch(extCollection.collection_id, tokensToCreate);
-        if (batchResult.isOk()) {
-          createdCount += batchResult.value.created;
-          publishedCount += batchResult.value.published;
-        }
-      }
-      processedCount += batchTokenIds.length;
+      const tokenToCreate: NewMegadataToken = {
+        id: tokenId,
+        collection_id: extCollection.collection_id,
+        data: { ...metadata, source: extCollection.source, id: extCollection.id },
+        is_published: true,
+        modules: [extCollection.type, SPECIAL_MODULES.EXTENDING_METADATA, SPECIAL_MODULES.EXTENDING_COLLECTION]
+      };
+
+      await processTokenBatch(extCollection.collection_id, [tokenToCreate]);
     }
 
     console.log(`  Sync finished for collection ${extCollection.collection_id}. Created: ${createdCount}, Published: ${publishedCount}, Processed: ${processedCount}`);

@@ -27,7 +27,6 @@ import type {
   CreateExternalCollection,
   GetExternalCollection
 } from "./megadata.routes";
-import { ApiError } from "@/utils/errors";
 import { MegadataService } from "@/services/megadata.service";
 import { getModules } from "@/services/module";
 import { ModuleValidatorService } from "@/services/module-validator";
@@ -37,6 +36,8 @@ import { SPECIAL_MODULES } from "@/utils/constants";
 import { RpcService } from "@/services/rpc.service";
 import { syncExternalCollection } from "@/workers/external_collection_worker";
 import { tokenConfig } from "@/config/token-config";
+import { getContractFetchers } from "@/services/metadata-fetcher.service";
+import { HTTPException } from 'hono/http-exception'
 
 const validatorService = new ModuleValidatorService();
 
@@ -87,7 +88,7 @@ export const createCollection: AppRouteHandler<CreateCollection> = async (c) => 
     .returning()
     .then(result => {
       const record = result[0];
-      if (!record) throw new ApiError("Failed to create collection", HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+      if (!record) throw new HTTPException(HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, { message: "Failed to create collection" });
       return record;
     });
 
@@ -119,9 +120,17 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
 
   // Fetch the contract name from RPC
   const contractName = await RpcService.getContractName(body.source, body.type, body.id);
-  // Check that it is a valid contract
-  await RpcService.getTotalSupply(body.source, body.type, body.id);
-  
+
+  // Check that it is a contract that we can support
+  const contractFetchers = await getContractFetchers(RpcService.getProvider(body.source), body.id);
+  if (contractFetchers.fetchName === null) {
+    throw new HTTPException(HTTP_STATUS_CODES.BAD_REQUEST, { message: "Contract does not support name()" });
+  } else if (contractFetchers.fetchTokenURI === null) {
+    throw new HTTPException(HTTP_STATUS_CODES.BAD_REQUEST, { message: "Contract does not support tokenURI()" });
+  } else if (contractFetchers.fetchTotalSupply === null) {
+    throw new HTTPException(HTTP_STATUS_CODES.BAD_REQUEST, { message: "Contract does not support totalSupply()" });
+  }
+
   const account = await AccountService.ensureAccount(accountId);
 
   const collection = await db.insert(megadataCollection)
@@ -129,7 +138,7 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
     .returning()
     .then(result => {
       const record = result[0];
-      if (!record) throw new ApiError("Failed to create collection", HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+      if (!record) throw new HTTPException(HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, { message: "Failed to create collection" });
       return record;
     });
 
@@ -138,14 +147,14 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
     .returning()
     .then(result => {
       const record = result[0];
-      if (!record) throw new ApiError("Failed to create external collection details", HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+      if (!record) throw new HTTPException(HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, { message: "Failed to create external collection details" });
       return record;
     });
 
   // Publish the collection immediately
   const publishResult = await MegadataService.publishCollection(collection, [], false);
   if (!publishResult) {
-    throw new ApiError("Failed to publish collection", HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
+    throw new HTTPException(HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, { message: "Failed to publish collection" });
   }
 
   // Construct the object expected by syncExternalCollection
@@ -509,12 +518,12 @@ export const validateTokenPermissions: AppRouteHandler<ValidateTokenPermissions>
 
   const tokenResult = await MegadataService.getTokenById(collection_id, token_id);
   if (tokenResult.isErr()) {
-    throw new ApiError(tokenResult.error.message, HTTP_STATUS_CODES.NOT_FOUND);
+    throw new HTTPException(HTTP_STATUS_CODES.NOT_FOUND, { message: tokenResult.error.message });
   }
 
   const token = tokenResult.value;
   if (!token) {
-    throw new ApiError("Token not found", HTTP_STATUS_CODES.NOT_FOUND);
+    throw new HTTPException(HTTP_STATUS_CODES.NOT_FOUND, { message: "Token not found" });
   }
 
   const modules = token.modules;

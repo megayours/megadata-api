@@ -1,45 +1,21 @@
 import { ethers } from 'ethers';
-import { getRandomRpcUrl } from '../config/rpc';
+
+import type { JsonRpcProvider } from 'ethers';
 
 export class MetadataFetcherService {
-  static async fetchMetadata(
-    blockchain: string,
-    contract: string,
-    tokenId: string
-  ): Promise<Record<string, unknown>> {
-    const rpcUrl = getRandomRpcUrl(blockchain);
-    if (!rpcUrl) {
-      throw new Error(`Failed to get RPC URL: ${rpcUrl}`);
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const contractInstance = new ethers.Contract(
-      contract,
-      ['function tokenURI(uint256 tokenId) view returns (string)'],
-      provider
-    );
-
-    const tokenURIFunction = contractInstance.tokenURI;
-    if (!tokenURIFunction) {
-      throw new Error('Contract does not have tokenURI function');
-    }
-
-    const tokenURI = await tokenURIFunction(tokenId);
-    console.log(`[MetadataFetcherService] Fetched tokenURI: ${tokenURI}`);
-    if (!tokenURI) {
-      throw new Error('Failed to get tokenURI');
-    }
+  static async fetchMetadata(tokenUri: string): Promise<Record<string, unknown>> {
+    
 
     // Handle base64-encoded data URI
     const base64Prefix = 'data:application/json;base64,';
-    if (tokenURI.startsWith(base64Prefix)) {
-      const base64Data = tokenURI.slice(base64Prefix.length);
+    if (tokenUri.startsWith(base64Prefix)) {
+      const base64Data = tokenUri.slice(base64Prefix.length);
       const jsonStr = Buffer.from(base64Data, 'base64').toString('utf-8');
       const metadata = JSON.parse(jsonStr) as Record<string, unknown>;
-      return { ...metadata, uri: tokenURI, source: blockchain, id: contract };
+      return { ...metadata, uri: tokenUri };
     }
 
-    const metadataUrl = `${process.env.NEXT_PUBLIC_MEGADATA_API_URI}/ext/${tokenURI}`;
+    const metadataUrl = `${process.env.NEXT_PUBLIC_MEGADATA_API_URI}/ext/${tokenUri}`;
     console.log(`[MetadataFetcherService] Fetching metadata from ${metadataUrl}`);
     const response = await fetch(metadataUrl);
     if (!response.ok) {
@@ -48,21 +24,145 @@ export class MetadataFetcherService {
 
     const metadata = (await response.json()) as Record<string, unknown>;
     console.log(`[MetadataFetcherService] Fetched metadata: `, metadata);
-    return { ...metadata, uri: tokenURI, source: blockchain, id: contract };
+    return { ...metadata, uri: tokenUri };
   }
+}
 
-  static mergeMetadata(
-    originalMetadata: Record<string, unknown>,
-    fetchedMetadata: Record<string, unknown>
-  ): Record<string, unknown> {
-    // Create a deep copy of the original metadata
-    const merged = JSON.parse(JSON.stringify(originalMetadata));
+export type ContractCapabilities = {
+  supportsERC721: boolean;
+  supportsERC721Enumerable: boolean;
+  supportsERC721Metadata: boolean;
+  hasTokenURI: boolean;
+  hasName: boolean;
+  hasTotalSupply: boolean;
+  hasTokenByIndex: boolean;
+};
 
-    // Merge the fetched metadata, overriding any existing fields
-    for (const [key, value] of Object.entries(fetchedMetadata)) {
-      merged[key] = value;
+/**
+ * Detects which ERC721/Enumerable/Metadata functions and interfaces a contract supports.
+ * Uses ERC165 if available, otherwise falls back to try-call pattern.
+ */
+export async function detectContractCapabilities(
+  provider: JsonRpcProvider,
+  contractAddress: string
+): Promise<ContractCapabilities> {
+  const erc165Abi = [
+    "function supportsInterface(bytes4 interfaceId) view returns (bool)"
+  ];
+  const contract = new ethers.Contract(contractAddress, erc165Abi, provider);
+
+  let supportsERC721 = false;
+  let supportsERC721Enumerable = false;
+  let supportsERC721Metadata = false;
+
+  // Try ERC165 detection, but only if supportsInterface exists
+  if (typeof contract.supportsInterface === 'function') {
+    try {
+      supportsERC721 = await contract.supportsInterface("0x80ac58cd");
+      supportsERC721Enumerable = await contract.supportsInterface("0x780e9d63");
+      supportsERC721Metadata = await contract.supportsInterface("0x5b5e139f");
+    } catch {
+      // Not ERC165, fallback to try-call
     }
-
-    return merged;
   }
+
+  // Fallback: Try to call functions directly
+  const testAbi = [
+    "function tokenURI(uint256) view returns (string)",
+    "function name() view returns (string)",
+    "function totalSupply() view returns (uint256)",
+    "function tokenByIndex(uint256) view returns (uint256)"
+  ];
+  const testContract = new ethers.Contract(contractAddress, testAbi, provider);
+
+  // Use 'as any' to dynamically check for function existence and call callStatic
+  async function hasFunction(fn: string, ...args: any[]): Promise<boolean> {
+    const contractAny = testContract as any;
+    if (!contractAny.callStatic || typeof contractAny.callStatic[fn] !== 'function') {
+      return false;
+    }
+    try {
+      await contractAny.callStatic[fn](...args);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const hasTokenURI = await hasFunction("tokenURI", 0);
+  const hasName = await hasFunction("name");
+  const hasTotalSupply = await hasFunction("totalSupply");
+  const hasTokenByIndex = await hasFunction("tokenByIndex", 0);
+
+  return {
+    supportsERC721,
+    supportsERC721Enumerable,
+    supportsERC721Metadata,
+    hasTokenURI,
+    hasName,
+    hasTotalSupply,
+    hasTokenByIndex
+  };
+}
+
+export type ContractFetchers = {
+  fetchName: (() => Promise<string>) | null;
+  fetchTokenURI: ((tokenId: string | number) => Promise<string>) | null;
+  fetchTotalSupply: (() => Promise<number>) | null;
+  fetchTokenByIndex: ((index: number) => Promise<string>) | null;
+};
+
+export async function getContractFetchers(
+  provider: JsonRpcProvider,
+  contractAddress: string
+): Promise<ContractFetchers> {
+  const abi = [
+    "function name() view returns (string)",
+    "function symbol() view returns (string)",
+    "function tokenURI(uint256) view returns (string)",
+    "function totalSupply() view returns (uint256)",
+    "function tokenByIndex(uint256) view returns (uint256)",
+    "function supportsInterface(bytes4 interfaceId) view returns (bool)",
+  ];
+  const contract = new ethers.Contract(contractAddress, abi, provider);
+
+  // ERC165 interface detection
+  let supportsMetadata = false;
+  try {
+    if (typeof contract.supportsInterface === "function") {
+      supportsMetadata = await contract.supportsInterface("0x5b5e139f");
+    }
+  } catch {
+    // Not ERC165 or call failed
+  }
+
+  // For name, symbol, totalSupply: try to call, return null if fails
+  async function safeCall<T>(fnName: string, call: () => Promise<T>): Promise<(() => Promise<T>) | null> {
+    const fn = (contract as any)[fnName];
+    if (typeof fn !== 'function') return null;
+    try {
+      await call();
+      return call;
+    } catch {
+      return null;
+    }
+  }
+
+  const fetchName = await safeCall<string>('name', () => (contract as any).name());
+  const fetchTotalSupply = await safeCall<number>('totalSupply', () => (contract as any).totalSupply().then(Number));
+
+  // For tokenURI and tokenByIndex, always return a lambda, but check typeof before calling
+  const fetchTokenURI = (typeof (contract as any).tokenURI === 'function')
+    ? (tokenId: string | number) => (contract as any).tokenURI(tokenId)
+    : null;
+  const fetchTokenByIndex = (typeof (contract as any).tokenByIndex === 'function')
+    ? (index: number) => (contract as any).tokenByIndex(index).then((id: any) => id.toString())
+    : null;
+
+  return {
+    fetchName,
+    fetchTokenURI: supportsMetadata ? fetchTokenURI : null,
+    fetchTotalSupply,
+    fetchTokenByIndex,
+  };
 } 

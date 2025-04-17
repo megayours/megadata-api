@@ -13,7 +13,7 @@ const erc721EnumerableAbi = [
 export class RpcService {
   private static providers: Record<string, ethers.JsonRpcProvider> = {};
 
-  private static getProvider(source: string): ethers.JsonRpcProvider {
+  public static getProvider(source: string): ethers.JsonRpcProvider {
     if (!this.providers[source]) {
       const rpcUrl = getRandomRpcUrl(source);
       this.providers[source] = new ethers.JsonRpcProvider(rpcUrl);
