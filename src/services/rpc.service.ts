@@ -16,6 +16,7 @@ export class RpcService {
   public static getProvider(source: string): ethers.JsonRpcProvider {
     if (!this.providers[source]) {
       const rpcUrl = getRandomRpcUrl(source);
+      console.log(`[RpcService] Creating new provider for ${source} at ${JSON.stringify(rpcUrl)}`);
       this.providers[source] = new ethers.JsonRpcProvider(rpcUrl);
     }
     return this.providers[source];

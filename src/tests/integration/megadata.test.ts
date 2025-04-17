@@ -22,7 +22,7 @@ mock.module('../../services/abstraction-chain.service', () => ({
 
 // Mock getRandomRpcUrl
 mock.module('../../config/rpc', () => ({
-  getRandomRpcUrl: () => ok('https://ethereum-rpc.publicnode.com')
+  getRandomRpcUrl: () => 'https://ethereum-rpc.publicnode.com'
 }));
 
 const app = testClient(createTestApp(router));
