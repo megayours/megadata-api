@@ -129,6 +129,8 @@ async function syncTokens(
 
   const publishedIds = new Set((await Promise.all(tokenPublishesPromises)).filter(item => item !== null).map(item => item.id));
 
+  console.log(`Published IDs: ${publishedIds}`);
+
   for (const token of tokenIds) {
     if (publishedIds.has(token.id)) {
       tokensToUpdate.push(token);
