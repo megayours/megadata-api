@@ -5,7 +5,7 @@ import cron from 'node-cron';
 import { AbstractionChainService } from '@/services/abstraction-chain.service';
 import { formatData } from '@/utils/data-formatter';
 
-const CRON_SCHEDULE = '*/10 * * * *'; // Check once per 10 seconds
+const CRON_SCHEDULE = '*/1 * * * *'; // Check once per 10 seconds
 const BATCH_SIZE = 10;
 
 let isCronJobRunning = false;
