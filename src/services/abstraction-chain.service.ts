@@ -16,8 +16,8 @@ export class AbstractionChainService {
     const client = await this.createClient();
 
     return client.query<{ item: Record<string, any> }>("megadata.get_item", {
-      collection_id: collectionId.toString(),
-      item_id: itemId
+      collection: collectionId.toString(),
+      token_id: itemId
     });
   }
 
