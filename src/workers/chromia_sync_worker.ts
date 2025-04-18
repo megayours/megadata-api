@@ -137,6 +137,9 @@ async function syncTokens(
     }
   }
 
+  console.log(`Tokens to create: ${tokensToCreate.length}`);
+  console.log(`Tokens to update: ${tokensToUpdate.length}`);
+
   if (tokensToCreate.length > 0) {
     await AbstractionChainService.createItems(collectionId, tokensToCreate.map(t => ({ id: t.id, data: formatData(t.data, modules) })));
   }
