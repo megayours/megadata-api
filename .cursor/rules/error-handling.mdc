@@ -1,9 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-
-# Error Handling
-
-- Never use the try-catch pattern, instead use neverthrow with ResultAsync for asynchronous operations.

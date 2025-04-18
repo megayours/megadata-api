@@ -91,10 +91,8 @@ export class MegadataService {
       });
     }
 
-    await AbstractionChainService.createItems(collection.id, toPublish);
-
     return db.update(megadataToken)
-      .set({ is_published: true })
+      .set({ sync_status: 'pending' })
       .where(and(
         eq(megadataToken.collection_id, collection.id),
         inArray(megadataToken.id, toPublish.map(token => token.id))

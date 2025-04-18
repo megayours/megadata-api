@@ -12,6 +12,15 @@ export class AbstractionChainService {
     return result.links || [];
   }
 
+  static async getPublishedItem(collectionId: number, itemId: string): Promise<Record<string, any>> {
+    const client = await this.createClient();
+
+    return client.query<{ item: Record<string, any> }>("megadata.get_item", {
+      collection_id: collectionId.toString(),
+      item_id: itemId
+    });
+  }
+
   static async createCollection(account: string, id: number, name: string): Promise<void> {
     console.log("Creating collection on chain for collection", account, id, name);
     const client = await this.createClient();

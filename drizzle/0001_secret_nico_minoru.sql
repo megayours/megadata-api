@@ -1,0 +1,1 @@
+ALTER TABLE "megadata_token" ADD COLUMN "sync_status" text DEFAULT 'pending' NOT NULL;

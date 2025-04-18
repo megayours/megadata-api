@@ -4,12 +4,10 @@ import { handleDatabaseError } from "../db/helpers";
 import type { ExternalCollection, MegadataCollection, Module, NewMegadataToken } from "../db";
 import { err, ok, ResultAsync } from "neverthrow";
 import { eq, isNull, or, lt, sql, inArray } from "drizzle-orm"; // Add inArray back
-import { AbstractionChainService } from "../services/abstraction-chain.service"; // Assuming this handles publishing
 import { MegadataService } from "../services/megadata.service"; // Needed for token creation/publishing logic?
 import { RpcService } from "../services/rpc.service"; // Placeholder - To be created
 import { getContractFetchers, MetadataFetcherService } from "../services/metadata-fetcher.service"; // Assuming this can fetch external metadata
 import cron from 'node-cron';
-import { formatData } from "../utils/data-formatter";
 import { SPECIAL_MODULES } from "../utils/constants";
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // Check once per hour
@@ -170,13 +168,10 @@ async function processTokenBatch(collectionId: number, tokens: NewMegadataToken[
     return err(modulesResult.error);
   }
 
-  console.log(`    Publishing batch of ${createdBatch.length} tokens...`);
-  await AbstractionChainService.createItems(collectionId, createdBatch.map(t => ({ id: t.id, data: formatData(t.data as Record<string, any>, modulesResult.value) })));
-
-  // 3. Update is_published status
+  // 3. Update sync_status to 'pending'
   const updateResult = await ResultAsync.fromPromise(
     db.update(megadataToken)
-      .set({ is_published: true })
+      .set({ sync_status: 'pending' })
       .where(inArray(megadataToken.row_id, createdBatch.map(t => t.row_id)))
       .then(() => true),
     handleDatabaseError
