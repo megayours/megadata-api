@@ -8,8 +8,6 @@ interface SecurityRequirement {
 }
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
-  console.log('authMiddleware');
-
   if (process.env.NODE_ENV !== 'production') {
     const testBypassAuthHeader = c.req.header(TEST_BYPASS_AUTH_HEADER);
     if (testBypassAuthHeader) {

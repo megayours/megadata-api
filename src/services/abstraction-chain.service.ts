@@ -22,7 +22,6 @@ export class AbstractionChainService {
   }
 
   static async createCollection(account: string, id: number, name: string): Promise<void> {
-    console.log("Creating collection on chain for collection", account, id, name);
     const client = await this.createClient();
 
     const signatureProvider = this.getSignatureProvider();
@@ -38,25 +37,22 @@ export class AbstractionChainService {
     }, signatureProvider);
   }
 
-  static async updateItem(collectionId: number, itemId: string, data: Record<string, any>) {
-    console.log("Updating item on chain for collection", collectionId, itemId, data);
+  static async updateItems(collectionId: number, items: { id: string, data: Record<string, any> }[]) {
     const client = await this.createClient();
 
     const signatureProvider = this.getSignatureProvider();
 
+    const operations = items.map(({ id, data }) => ({
+      name: "megadata.update_item",
+      args: [collectionId.toString(), id.toString(), JSON.stringify(data)]
+    }));
+
     await client.signAndSendUniqueTransaction({
-      operations: [
-        {
-          name: "megadata.update_item",
-          args: [collectionId.toString(), itemId.toString(), JSON.stringify(data)]
-        }
-      ],
+      operations,
       signers: [signatureProvider.pubKey]
     }, signatureProvider);
   }
-
   static async createItems(collectionId: number, items: { id: string, data: Record<string, any> }[]) {
-    console.log("Creating items on chain for collection", collectionId, items);
     const client = await this.createClient();
 
     const signatureProvider = this.getSignatureProvider();
@@ -65,8 +61,6 @@ export class AbstractionChainService {
       name: "megadata.create_item",
       args: [collectionId.toString(), id.toString(), JSON.stringify(data)]
     }));
-
-    console.log("Operations", operations);
 
     await client.signAndSendUniqueTransaction({
       operations,

@@ -47,8 +47,6 @@ export class ExtendingMetadataValidator extends BaseValidator {
 
         const provider = new ethers.JsonRpcProvider(rpcUrlResult);
 
-        console.log(provider);
-
         // Check token ownership
         const contractInstance = new ethers.Contract(
           contract,
@@ -61,9 +59,7 @@ export class ExtendingMetadataValidator extends BaseValidator {
 
         try {
           const owner = await contractInstance.ownerOf(tokenId);
-          console.log(`Owner: `, owner);
           if (accounts.some(account => owner.toLowerCase() === account.toLowerCase())) {
-            console.log(`Returning success`)
             return this.createSuccessResult();
           }
 

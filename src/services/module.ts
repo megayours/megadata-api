@@ -5,7 +5,6 @@ import { ResultAsync } from "neverthrow";
 import { ApiError, DatabaseError } from "../utils/errors";
 
 export const getModules = (ids?: string[]) => {
-  console.log("Filtering modules", ids);
   return ResultAsync.fromPromise(
     db.select().from(module).where(ids ? inArray(module.id, ids) : sql`1 = 1`),
     (error) => new DatabaseError("Failed to fetch modules", error as ApiError)

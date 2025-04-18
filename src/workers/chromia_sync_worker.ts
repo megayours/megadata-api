@@ -48,7 +48,7 @@ async function runWorker() {
     .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
     .leftJoin(moduleTable, eq(tokenModule.module_id, moduleTable.id))
     .where(eq(megadataToken.sync_status, 'pending'))
-    .orderBy(megadataToken.collection_id, megadataToken.updated_at);
+    .orderBy(megadataToken.updated_at);
 
   // 2. Group tokens by collection_id, and for each token aggregate all its modules
   type TokenGroup = {
@@ -130,8 +130,6 @@ async function syncTokens(
   const publishedItems = await Promise.all(tokenPublishesPromises);
   const publishedIds = new Set(publishedItems.filter(item => item !== null).map(item => item.token_id));
 
-  console.log(`Published IDs: ${publishedIds}`);
-
   for (const token of tokenIds) {
     if (publishedIds.has(token.id)) {
       tokensToUpdate.push(token);
@@ -147,7 +145,7 @@ async function syncTokens(
     await AbstractionChainService.createItems(collectionId, tokensToCreate.map(t => ({ id: t.id, data: formatData(t.data, modules) })));
   }
 
-  for (const token of tokensToUpdate) {
-    await AbstractionChainService.updateItem(collectionId, token.id, formatData(token.data, modules));
+  if (tokensToUpdate.length > 0) {
+    await AbstractionChainService.updateItems(collectionId, tokensToUpdate.map(t => ({ id: t.id, data: formatData(t.data, modules) })));
   }
 }

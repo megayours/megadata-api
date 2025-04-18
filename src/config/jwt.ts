@@ -51,8 +51,6 @@ export const verifyToken = (token: string, appPubKey: string | undefined): Resul
           // Social login
           const jwks = socialLoginJWKS;
           const jwtDecoded = await jose.jwtVerify(token, jwks, { algorithms: ["ES256"] });
-          console.log('jwtDecoded', jwtDecoded);
-          console.log('appPubKey', appPubKey);
           if ((jwtDecoded.payload as any).wallets.find((x: { type: string; curve: string }) => x.type === "web3auth_app_key" && x.curve === "secp256k1").public_key.toLowerCase() === appPubKey.toLowerCase()) {
             return jwtDecoded.payload as JwtPayload;
           } else {
