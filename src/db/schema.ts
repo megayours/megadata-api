@@ -43,7 +43,7 @@ export const megadataToken = pgTable("megadata_token", {
     .notNull()
     .references(() => megadataCollection.id, { onDelete: 'cascade' }),
   data: jsonb("data").notNull(),
-  sync_status: text("sync_status").notNull().default('pending'),
+  sync_status: text("sync_status").notNull().default('none'),
   is_published: boolean("is_published").notNull().default(false),
   created_at: integer("created_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
   updated_at: integer("updated_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),

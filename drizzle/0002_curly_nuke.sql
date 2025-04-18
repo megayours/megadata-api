@@ -1,0 +1,1 @@
+ALTER TABLE "megadata_token" ALTER COLUMN "sync_status" SET DEFAULT 'none';
