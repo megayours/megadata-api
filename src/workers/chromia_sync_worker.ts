@@ -85,30 +85,34 @@ async function runWorker() {
 
   // 3. Iterate per group and call syncTokens
   for (const [collectionIdStr, tokenMap] of grouped.entries()) {
-    const tokens = Array.from(tokenMap.values()).slice(0, BATCH_SIZE);
-    if (!tokens || tokens.length === 0) continue;
+    const allTokens = Array.from(tokenMap.values());
+    if (!allTokens || allTokens.length === 0) continue;
     const collectionId = Number(collectionIdStr);
-    // Collect all unique modules for this group
-    const groupModules: { id: string; schema: any }[] = [];
-    const seenModuleIds = new Set<string>();
-    for (const token of tokens) {
-      for (const mod of token.modules) {
-        if (!seenModuleIds.has(mod.id)) {
-          seenModuleIds.add(mod.id);
-          groupModules.push(mod);
+    // Chunk tokens into batches
+    for (let i = 0; i < allTokens.length; i += BATCH_SIZE) {
+      const tokens = allTokens.slice(i, i + BATCH_SIZE);
+      // Collect all unique modules for this batch
+      const batchModules: { id: string; schema: any }[] = [];
+      const seenModuleIds = new Set<string>();
+      for (const token of tokens) {
+        for (const mod of token.modules) {
+          if (!seenModuleIds.has(mod.id)) {
+            seenModuleIds.add(mod.id);
+            batchModules.push(mod);
+          }
         }
       }
-    }
-    await syncTokens(
-      collectionId,
-      tokens.map((t: TokenGroup) => ({ id: t.id, data: t.data })),
-      groupModules
-    );
+      await syncTokens(
+        collectionId,
+        tokens.map((t: TokenGroup) => ({ id: t.id, data: t.data })),
+        batchModules
+      );
 
-    // 4. Update sync_status to 'done' for these tokens
-    await db.update(megadataToken)
-      .set({ sync_status: 'done', is_published: true })
-      .where(and(eq(megadataToken.collection_id, collectionId), inArray(megadataToken.id, tokens.map((t: TokenGroup) => t.id))));
+      // 4. Update sync_status to 'done' for these tokens
+      await db.update(megadataToken)
+        .set({ sync_status: 'done', is_published: true })
+        .where(and(eq(megadataToken.collection_id, collectionId), inArray(megadataToken.id, tokens.map((t: TokenGroup) => t.id))));
+    }
   }
 }
 
