@@ -359,23 +359,32 @@ export class MegadataService {
    * Fetch a random set of tokens where the data JSON contains a specified attribute.
    * @param attribute The attribute key to look for in the data JSON
    * @param count The number of random tokens to return
-   * @returns ResultAsync<{ collection_id: number, id: string, data: any }[], ApiError>
+   * @returns ResultAsync<{ collection_id: number, id: string, data: any, modules: string[] }[], ApiError>
    */
-  static async getRandomTokensByAttribute(attribute: string, count: number): Promise<ResultAsync<{ collection_id: number, id: string, data: any }[], ApiError>> {
+  static async getRandomTokensByAttribute(attribute: string, count: number): Promise<ResultAsync<{ collection_id: number, id: string, data: any, modules: string[] }[], ApiError>> {
     return ResultAsync.fromPromise(
       db.select({
         collection_id: megadataToken.collection_id,
         id: megadataToken.id,
-        data: megadataToken.data
+        data: megadataToken.data,
+        modules: sql<string[] | null>`array_agg(${tokenModule.module_id})`.as('modules')
       })
         .from(megadataToken)
+        .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
         .where(and(
           sql`${megadataToken.data} ? ${attribute}`,
           sql`${megadataToken.data} ->> ${attribute} IS NOT NULL`,
           sql`${megadataToken.data} ->> ${attribute} != ''`
         ))
+        .groupBy(megadataToken.row_id)
         .orderBy(sql`RANDOM()`)
-        .limit(count),
+        .limit(count)
+        .then(results => results.map(({ collection_id, id, data, modules }) => ({
+          collection_id,
+          id,
+          data,
+          modules: (modules ?? []).filter(Boolean)
+        }))),
       (error) => handleDatabaseError(error)
     );
   }
