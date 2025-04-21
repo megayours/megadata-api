@@ -234,7 +234,7 @@ export class MegadataService {
             schema: true
           }
         });
-        await AbstractionChainService.updateItem(collectionId, tokenId, formatData(data, modulesWithSchema));
+        await AbstractionChainService.updateItems(collectionId, [{ id: tokenId, data: formatData(data, modulesWithSchema) }]);
       }
 
       // Update the token data
