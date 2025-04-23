@@ -50,6 +50,7 @@ const EnvSchema = z.object({
     },
     { message: "ADMIN_LIST must be a comma-separated list of addresses" }
   ),
+  INTERNAL_API_KEY: z.string(),
 });
 
 export type env = z.infer<typeof EnvSchema>;

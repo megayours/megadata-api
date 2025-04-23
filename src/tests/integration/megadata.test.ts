@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { isErrorResponse } from "../helpers";
 import { generateRandomAccount } from "../helpers";
 import type { MegadataTokenResponse } from "../../routes/megadata/types";
-import { TEST_BYPASS_AUTH_HEADER } from "../../middleware/auth";
+import { ACCOUNT_ID_HEADER } from "../../middleware/auth";
 import { ok } from "neverthrow";
 import { createTestApp } from "@/lib/create-app";
 import { selectCollectionsSchema } from "@/db/schema";
@@ -58,7 +58,7 @@ describe("Megadata Collection Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -80,7 +80,7 @@ describe("Megadata Collection Routes", () => {
         json: collection1,
       },
       {
-        headers: { 'Content-Type': 'application/json', [TEST_BYPASS_AUTH_HEADER]: testAccount.id }
+        headers: { 'Content-Type': 'application/json', [ACCOUNT_ID_HEADER]: testAccount.id }
       }
     );
     const createResponse2 = await app.megadata.collections.$post(
@@ -88,7 +88,7 @@ describe("Megadata Collection Routes", () => {
         json: collection2,
       },
       {
-        headers: { 'Content-Type': 'application/json', [TEST_BYPASS_AUTH_HEADER]: testAccount.id }
+        headers: { 'Content-Type': 'application/json', [ACCOUNT_ID_HEADER]: testAccount.id }
       }
     );
     const createdCollection2 = await createResponse2.json(); // Keep track of one ID for later check
@@ -97,7 +97,7 @@ describe("Megadata Collection Routes", () => {
     const response = await app.megadata.collections.$get(
       { query: { type: 'default', account_id: testAccount.id } },
       {
-        headers: { 'Content-Type': 'application/json', [TEST_BYPASS_AUTH_HEADER]: testAccount.id }
+        headers: { 'Content-Type': 'application/json', [ACCOUNT_ID_HEADER]: testAccount.id }
       }
     );
     expect(response.status).toBe(200);
@@ -138,7 +138,7 @@ describe("Megadata Collection Routes", () => {
       {
         headers: {
         'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -153,7 +153,7 @@ describe("Megadata Collection Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -183,7 +183,7 @@ describe("Megadata Collection Routes", () => {
       {
         headers: {
         'Content-Type': 'application/json',
-        [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+        [ACCOUNT_ID_HEADER]: testAccount.id
       }
     });
 
@@ -201,7 +201,7 @@ describe("Megadata Collection Routes", () => {
       {
         headers: {
         'Content-Type': 'application/json',
-        [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+        [ACCOUNT_ID_HEADER]: testAccount.id
       }
     });
     expect(publishResponse.status).toBe(200);
@@ -214,7 +214,7 @@ describe("Megadata Collection Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -231,7 +231,7 @@ describe("Megadata Collection Routes", () => {
       {
         headers: {
         'Content-Type': 'application/json',
-        [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+        [ACCOUNT_ID_HEADER]: testAccount.id
       }
     });
     expect(response.status).toBe(404);
@@ -254,7 +254,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
         'Content-Type': 'application/json',
-        [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+        [ACCOUNT_ID_HEADER]: testAccount.id
       }
     });
     testCollection = await createResponse.json();
@@ -275,7 +275,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
         'Content-Type': 'application/json',
-        [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+        [ACCOUNT_ID_HEADER]: testAccount.id
       }
     });
 
@@ -293,7 +293,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
         'Content-Type': 'application/json',
-        [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+        [ACCOUNT_ID_HEADER]: testAccount.id
       }
     });
     console.log(response);
@@ -326,7 +326,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
         'Content-Type': 'application/json',
-        [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+        [ACCOUNT_ID_HEADER]: testAccount.id
       }
     });
     expect(response.status).toBe(201);
@@ -358,7 +358,7 @@ describe("Megadata Token Routes", () => {
           {
             headers: {
               'Content-Type': 'application/json',
-              [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+              [ACCOUNT_ID_HEADER]: testAccount.id
             }
           }
         );
@@ -386,7 +386,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -408,7 +408,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -428,7 +428,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -452,7 +452,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -481,7 +481,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -504,7 +504,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -527,7 +527,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -541,7 +541,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -562,7 +562,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -576,7 +576,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -596,7 +596,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -616,7 +616,7 @@ describe("Megadata Token Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -643,7 +643,7 @@ describe("Token Permission Validation", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -655,7 +655,7 @@ describe("Token Permission Validation", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -672,7 +672,7 @@ describe("Token Permission Validation", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -703,7 +703,7 @@ describe("Token Permission Validation", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );
@@ -719,7 +719,7 @@ describe("Token Permission Validation", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: testAccount.id
+          [ACCOUNT_ID_HEADER]: testAccount.id
         }
       }
     );

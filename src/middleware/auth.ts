@@ -1,26 +1,39 @@
 import type { MiddlewareHandler } from 'hono';
 import { verifyToken, getWalletAddress } from '../config/jwt';
+import env from '@/env';
 
-export const TEST_BYPASS_AUTH_HEADER = 'X-Test-Wallet-Address';
+export const ACCOUNT_ID_HEADER = 'X-Account-Id';
+export const INTERNAL_API_KEY_HEADER = 'X-Internal-Api-Key';
 
 interface SecurityRequirement {
   bearerAuth?: string[];
 }
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
-  if (process.env.NODE_ENV !== 'production') {
-    const testBypassAuthHeader = c.req.header(TEST_BYPASS_AUTH_HEADER);
-    if (testBypassAuthHeader) {
-      console.log('Test bypass auth header found');
-      c.set('walletAddress', testBypassAuthHeader);
-      await next();
-      return;
+  const internalApiKey = c.req.header(INTERNAL_API_KEY_HEADER);
+  const accountId = c.req.header(ACCOUNT_ID_HEADER);
+
+  if (internalApiKey) {
+    // Allow internal API key to bypass authentication
+    if (internalApiKey !== env.INTERNAL_API_KEY) {
+      return c.json({ error: 'Invalid internal API key' }, 401);
     }
+
+    if (accountId) {
+      c.set('walletAddress', accountId);
+    }
+
+    await next();
+    return;
+  } else if (accountId && env.NODE_ENV !== 'production') {
+    // Allow account ID to bypass authentication in non-production environments
+    c.set('walletAddress', accountId);
+    await next();
+    return;
   }
 
   const authHeader = c.req.header('Authorization');
-
-  if (!authHeader) {
+  if (!internalApiKey || !authHeader) {
     // Check if route requires authentication
     const route = c.get('route');
     if (!route?.security?.some((sec: SecurityRequirement) => sec.bearerAuth)) {

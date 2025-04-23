@@ -4,7 +4,7 @@ import { testClient } from "hono/testing";
 import { isErrorResponse } from "../helpers";
 import { createTestApp } from "@/lib/create-app";
 import router from "@/routes/module/module.index";
-import { TEST_BYPASS_AUTH_HEADER } from "../../middleware/auth";
+import { ACCOUNT_ID_HEADER } from "../../middleware/auth";
 
 const app = testClient(createTestApp(router));
 
@@ -24,7 +24,7 @@ describe("Module Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: 'test_account'
+          [ACCOUNT_ID_HEADER]: 'test_account'
         }
       }
     );
@@ -45,7 +45,7 @@ describe("Module Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: 'test_account'
+          [ACCOUNT_ID_HEADER]: 'test_account'
         }
       }
     );
@@ -62,7 +62,7 @@ describe("Module Routes", () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          [TEST_BYPASS_AUTH_HEADER]: 'test_account'
+          [ACCOUNT_ID_HEADER]: 'test_account'
         }
       }
     );

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { TEST_BYPASS_AUTH_HEADER } from "../middleware/auth";
+import { ACCOUNT_ID_HEADER } from "../middleware/auth";
 
 export const generateRandomAccount = () => ({
   id: `test_account_${randomUUID().slice(0, 8)}`,
@@ -17,7 +17,7 @@ export const makeTestRequest = (app: any, path: string, options: RequestInit = {
     headers: {
       ...options.headers,
       'Content-Type': 'application/json',
-      [TEST_BYPASS_AUTH_HEADER]: account.id
+      [ACCOUNT_ID_HEADER]: account.id
     }
   });
 };
