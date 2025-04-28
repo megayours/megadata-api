@@ -65,9 +65,9 @@ const extendingMetadataSchema = {
   }
 };
 
-const extendingCollectionSchema = {
+const externalCollectionSchema = {
   type: "object",
-  required: ["source", "id"],
+  required: ["source"],
   properties: {
     source: { type: "string", description: "The source of the collection, e.g. a blockchain like Ethereum" },
     id: { type: "string", description: "The ID of the collection on the source, e.g. the contract address" }
@@ -166,17 +166,17 @@ const seedModules = async () => {
     await db
       .insert(module)
       .values({
-        id: SPECIAL_MODULES.EXTENDING_COLLECTION,
-        name: "Extending Collection",
-        description: "Enables the metadata of an existing collection to be extended",
-        schema: extendingCollectionSchema
+        id: "external_collection",
+        name: "External Collection",
+        description: "Enables the metadata of a collection to be externally minted",
+        schema: externalCollectionSchema
       })
       .onConflictDoUpdate({
         target: module.id,
         set: {
-          name: "Extending Collection",
-          description: "Enables the metadata of an existing collection to be extended",
-          schema: extendingCollectionSchema
+          name: "External Collection",
+          description: "Enables the metadata of a collection to be externally minted",
+          schema: externalCollectionSchema
         }
       });
 

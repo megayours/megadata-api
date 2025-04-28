@@ -41,20 +41,6 @@ export class MegadataService {
     );
   }
 
-  static async createCollection(collection: NewMegadataCollection): Promise<ResultAsync<MegadataCollection, ApiError>> {
-    return ResultAsync.fromPromise<MegadataCollection, ApiError>(
-      db.insert(megadataCollection)
-        .values(collection)
-        .returning()
-        .then(result => {
-          const record = result[0];
-          if (!record) throw new Error("Failed to create collection");
-          return record;
-        }),
-      (error) => handleDatabaseError(error)
-    );
-  }
-
   static async publishCollection(collection: MegadataCollection, tokenIds: string[] = [], all: boolean = false): Promise<boolean> {
     if (!collection.is_published) {
       await AbstractionChainService.createCollection(collection.account_id, collection.id, collection.name);
