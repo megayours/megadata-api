@@ -115,6 +115,8 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
     .limit(1)
     .then(result => result[0]?.megadata_collection || null);
 
+  c.var.logger.info(`Found existing external collection: ${existingExternalCollection!!}`, { existingExternalCollection });
+
   if (existingExternalCollection) {
     return c.json(existingExternalCollection, HTTP_STATUS_CODES.OK);
   }
