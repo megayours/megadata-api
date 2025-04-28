@@ -109,8 +109,8 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
     .from(externalCollection)
     .leftJoin(megadataCollection, eq(externalCollection.collection_id, megadataCollection.id))
     .where(and(
-      eq(externalCollection.source, source),
-      eq(externalCollection.id, id)
+      sql`${externalCollection.source} ilike ${source}`,
+      sql`${externalCollection.id} ilike ${id}`
     ))
     .limit(1)
     .then(result => result[0]?.megadata_collection || null);
