@@ -34,14 +34,8 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
 
   const authHeader = c.req.header('Authorization');
   if (!internalApiKey || !authHeader) {
-    // Check if route requires authentication
-    const route = c.get('route');
-    if (!route?.security?.some((sec: SecurityRequirement) => sec.bearerAuth)) {
-      console.log('No authentication required');
-      await next();
-      return;
-    }
-    return c.json({ error: 'Authorization header is required' }, 401);
+    await next();
+    return;
   }
 
   const token = authHeader.replace('Bearer ', '');
