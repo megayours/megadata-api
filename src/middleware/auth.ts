@@ -33,7 +33,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
   }
 
   const authHeader = c.req.header('Authorization');
-  if (!internalApiKey || !authHeader) {
+  if (!authHeader) {
     await next();
     return;
   }
