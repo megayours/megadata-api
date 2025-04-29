@@ -1,6 +1,6 @@
 import { eq, and, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { megadataToken, tokenModule, module as moduleTable } from '@/db/schema';
+import { megadataToken, tokenModule, module as moduleTable, megadataCollection } from '@/db/schema';
 import cron from 'node-cron';
 import { AbstractionChainService } from '@/services/abstraction-chain.service';
 import { formatData } from '@/utils/data-formatter';
@@ -47,7 +47,8 @@ async function runWorker() {
     .from(megadataToken)
     .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
     .leftJoin(moduleTable, eq(tokenModule.module_id, moduleTable.id))
-    .where(eq(megadataToken.sync_status, 'pending'))
+    .leftJoin(megadataCollection, eq(megadataToken.collection_id, megadataCollection.id))
+    .where(and(eq(megadataToken.sync_status, 'pending'), eq(megadataCollection.is_published, true)))
     .orderBy(megadataToken.updated_at);
 
   // 2. Group tokens by collection_id, and for each token aggregate all its modules
