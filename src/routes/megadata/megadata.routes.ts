@@ -158,6 +158,29 @@ export const getExternalCollection = createRoute({
   }
 });
 
+export const getExternalCollections = createRoute({
+  method: 'get',
+  path: '/external-collections',
+  tags: ['Collections'],
+  summary: 'Get all external collections',
+  request: {
+    query: z.object({
+      source: z.string().optional(),
+    })
+  },
+  responses: {
+    [HTTP_STATUS_CODES.OK]: {
+      content: {
+        'application/json': {
+          schema: z.array(selectExternalCollectionSchema)
+        }
+      },
+      description: 'List of external collections'
+    },
+    [HTTP_STATUS_CODES.UNAUTHORIZED]: error('Unauthorized')
+  }
+});
+
 export const publishCollection = createRoute({
   method: 'put',
   path: '/collections/{collection_id}/publish',
@@ -418,6 +441,7 @@ export type GetCollections = typeof getCollections;
 export type CreateCollection = typeof createCollection;
 export type CreateExternalCollection = typeof createExternalCollection;
 export type GetExternalCollection = typeof getExternalCollection;
+export type GetExternalCollections = typeof getExternalCollections;
 export type GetCollection = typeof getCollection;
 export type PublishCollection = typeof publishCollection;
 export type GetCollectionTokens = typeof getCollectionTokens;

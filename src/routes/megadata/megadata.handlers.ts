@@ -25,7 +25,8 @@ import type {
   GetCollection,
   PublishCollection,
   CreateExternalCollection,
-  GetExternalCollection
+  GetExternalCollection,
+  GetExternalCollections
 } from "./megadata.routes";
 import { MegadataService } from "@/services/megadata.service";
 import { getModules } from "@/services/module";
@@ -188,6 +189,16 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
   syncExternalCollection(workerArg);
 
   return c.json(collection, HTTP_STATUS_CODES.CREATED);
+}
+
+export const getExternalCollections: AppRouteHandler<GetExternalCollections> = async (c) => {
+  const { source } = c.req.valid('query');
+
+  const collections = await db.select()
+    .from(externalCollection)
+    .where(source ? eq(sql`${externalCollection.source} ilike ${source}`, source) : undefined);
+
+  return c.json(collections, HTTP_STATUS_CODES.OK);
 }
 
 export const getExternalCollection: AppRouteHandler<GetExternalCollection> = async (c) => {
