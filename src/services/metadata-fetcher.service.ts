@@ -137,7 +137,7 @@ export async function getContractFetchers(
   }
 
   // For name, symbol, totalSupply: try to call, return null if fails
-  async function safeCall<T>(fnName: string, call: () => Promise<T>): Promise<(() => Promise<T>) | null> {
+  async function safeCall<T>(fnName: string, call: (...args: any[]) => Promise<T>): Promise<((...args: any[]) => Promise<T>) | null> {
     const fn = (contract as any)[fnName];
     if (typeof fn !== 'function') return null;
     try {
@@ -150,13 +150,22 @@ export async function getContractFetchers(
 
   const fetchName = await safeCall<string>('name', () => (contract as any).name());
   const fetchTotalSupply = await safeCall<number>('totalSupply', () => (contract as any).totalSupply().then(Number));
+  const fetchTokenByIndex = await safeCall<string>('tokenByIndex', (tokenId: string) => (contract as any).tokenByIndex(tokenId).then((id: any) => id.toString()));
 
   // For tokenURI and tokenByIndex, always return a lambda, but check typeof before calling
   const fetchTokenURI = (typeof (contract as any).tokenURI === 'function')
-    ? (tokenId: string | number) => (contract as any).tokenURI(tokenId)
-    : null;
-  const fetchTokenByIndex = (typeof (contract as any).tokenByIndex === 'function')
-    ? (index: number) => (contract as any).tokenByIndex(index).then((id: any) => id.toString())
+    ? async (tokenId?: string | number) => {
+        if (fetchTokenByIndex) {
+          try {
+            const firstTokenId = await fetchTokenByIndex("0");
+            return (contract as any).tokenURI(firstTokenId);
+          } catch {
+            // Fallback to tokenId 0 if fetchTokenByIndex fails
+            return (contract as any).tokenURI(tokenId ?? 0);
+          }
+        }
+        return (contract as any).tokenURI(tokenId ?? 0);
+      }
     : null;
 
   return {
