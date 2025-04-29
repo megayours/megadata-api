@@ -118,7 +118,7 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
         }
 
         const metadata = await MetadataFetcherService.fetchMetadata(tokenUri);
-        if (Object.keys(metadata).length === 0) {
+        if (Object.keys(metadata).filter(key => key !== 'uri').length < 1) {
           console.log(`  Token ${tokenId} has empty metadata, skipping.`);
           break;
         }
