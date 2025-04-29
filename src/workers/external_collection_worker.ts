@@ -15,7 +15,7 @@ const BATCH_SIZE = 10; // Process N collections per run to avoid overwhelming re
 
 // Cron schedule (e.g., every hour at the start of the hour)
 // For testing, you might use '*/5 * * * *' (every 5 minutes)
-const CRON_SCHEDULE = '0 * * * *'; // Run at minute 0 of every hour
+const CRON_SCHEDULE = '*/1 * * * *'; // Check once per minute
 
 console.log(`Scheduling external collection worker with schedule: ${CRON_SCHEDULE}`);
 
@@ -97,7 +97,12 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
     for (; start < totalSupply; start += 1) {
       let tokenId: string | null = null;
       if (contractFetchers.fetchTokenByIndex !== null) {
-        tokenId = await contractFetchers.fetchTokenByIndex(start);
+        try {
+          tokenId = await contractFetchers.fetchTokenByIndex(start);
+        } catch (e) {
+          console.log(`  Error fetching token ID ${start} from contract:`, e);
+          tokenId = start.toString();
+        }
       } else {
         tokenId = start.toString();
       }
