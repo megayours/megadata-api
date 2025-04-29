@@ -71,6 +71,14 @@ export class AbstractionChainService {
   static async uploadFile(file: Buffer, contentType: string, account: string, name: string): Promise<ResultAsync<void, Error>> {
     const client = await this.createClient();
 
+    const fileAlreadyStored = await client.query<boolean>("filestorage.is_file_stored", {
+      hash: file.toString('hex')
+    });
+
+    if (fileAlreadyStored) {
+      return ok(undefined);
+    }
+
     const signatureProvider = this.getSignatureProvider();
 
     try {
