@@ -196,9 +196,13 @@ export const getExternalCollections: AppRouteHandler<GetExternalCollections> = a
 
   const collections = await db.select()
     .from(externalCollection)
+    .leftJoin(megadataCollection, eq(externalCollection.collection_id, megadataCollection.id))
     .where(source ? eq(sql`${externalCollection.source} ilike ${source}`, source) : undefined);
 
-  return c.json(collections, HTTP_STATUS_CODES.OK);
+  return c.json(collections.map(c => ({
+    ...c.external_collection,
+    megadata_collection: c.megadata_collection
+  })), HTTP_STATUS_CODES.OK);
 }
 
 export const getExternalCollection: AppRouteHandler<GetExternalCollection> = async (c) => {
