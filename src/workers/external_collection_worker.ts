@@ -130,6 +130,7 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
         await processTokenBatch(extCollection.collection_id, [tokenToCreate]);
       } catch (e) {
         console.info(`  Error processing token by in ${start}:`);
+        break;
       }
     }
 
