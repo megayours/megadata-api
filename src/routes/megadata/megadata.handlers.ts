@@ -131,8 +131,6 @@ export const createExternalCollection: AppRouteHandler<CreateExternalCollection>
     throw new HTTPException(HTTP_STATUS_CODES.BAD_REQUEST, { message: "Contract does not support name()" });
   } else if (contractFetchers.fetchTokenURI === null) {
     throw new HTTPException(HTTP_STATUS_CODES.BAD_REQUEST, { message: "Contract does not support tokenURI()" });
-  } else if (contractFetchers.fetchTotalSupply === null) {
-    throw new HTTPException(HTTP_STATUS_CODES.BAD_REQUEST, { message: "Contract does not support totalSupply()" });
   }
 
   const account = await AccountService.ensureAccount(accountId);

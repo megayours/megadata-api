@@ -48,16 +48,13 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
   try {
     // Get the contract fechers
     const contractFetchers = await getContractFetchers(RpcService.getProvider(extCollection.source as string), extCollection.id as string);
-    if (contractFetchers.fetchTotalSupply === null) {
-      console.log(`  Contract does not support totalSupply(), skipping sync.`);
-      return ok(true);
-    } else if (contractFetchers.fetchTokenURI === null) {
+    if (contractFetchers.fetchTokenURI === null) {
       console.log(`  Contract does not support tokenURI(), skipping sync.`);
       return ok(true);
     }
 
     // 1. Get total supply from the external source (RPC)
-    const totalSupply = await contractFetchers.fetchTotalSupply();
+    const totalSupply = contractFetchers.fetchTotalSupply ? await contractFetchers.fetchTotalSupply() : Number.MAX_SAFE_INTEGER;
     console.log(`  Total supply externally: ${totalSupply}`);
 
     // 2. Get all existing token IDs from our database for this collection
@@ -95,41 +92,45 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
 
     // 4. Iterate in batches to fetch token IDs and process them
     for (; start < totalSupply; start += 1) {
-      let tokenId: string | null = null;
-      if (contractFetchers.fetchTokenByIndex !== null) {
-        try {
-          tokenId = await contractFetchers.fetchTokenByIndex(start);
-        } catch (e) {
-          console.log(`  Error fetching token ID ${start} from contract:`, e);
+      try {
+        let tokenId: string | null = null;
+        if (contractFetchers.fetchTokenByIndex !== null) {
+          try {
+            tokenId = await contractFetchers.fetchTokenByIndex(start);
+          } catch (e) {
+            console.log(`  Error fetching token ID ${start} from contract:`, e);
+            tokenId = start.toString();
+          }
+        } else {
           tokenId = start.toString();
         }
-      } else {
-        tokenId = start.toString();
+
+        // Filter out token IDs that already exist in the DB
+        if (existingIds.has(tokenId)) {
+          console.log(`  Token ${tokenId} already exists in DB, skipping.`);
+          continue;
+        }
+
+        const tokenUri = await contractFetchers.fetchTokenURI(tokenId);
+        if (tokenUri === null) {
+          console.log(`  Token ${tokenId} does not have a tokenURI, skipping.`);
+          continue;
+        }
+
+        const metadata = await MetadataFetcherService.fetchMetadata(tokenUri);
+
+        const tokenToCreate: NewMegadataToken = {
+          id: tokenId,
+          collection_id: extCollection.collection_id,
+          data: { ...metadata, source: extCollection.source, id: extCollection.id },
+          is_published: true,
+          modules: [extCollection.type, SPECIAL_MODULES.EXTENDING_METADATA, SPECIAL_MODULES.EXTENDING_COLLECTION]
+        };
+
+        await processTokenBatch(extCollection.collection_id, [tokenToCreate]);
+      } catch (e) {
+        console.info(`  Error processing token by in ${start}:`);
       }
-
-      // Filter out token IDs that already exist in the DB
-      if (existingIds.has(tokenId)) {
-        console.log(`  Token ${tokenId} already exists in DB, skipping.`);
-        continue;
-      }
-
-      const tokenUri = await contractFetchers.fetchTokenURI(tokenId);
-      if (tokenUri === null) {
-        console.log(`  Token ${tokenId} does not have a tokenURI, skipping.`);
-        continue;
-      }
-
-      const metadata = await MetadataFetcherService.fetchMetadata(tokenUri);
-
-      const tokenToCreate: NewMegadataToken = {
-        id: tokenId,
-        collection_id: extCollection.collection_id,
-        data: { ...metadata, source: extCollection.source, id: extCollection.id },
-        is_published: true,
-        modules: [extCollection.type, SPECIAL_MODULES.EXTENDING_METADATA, SPECIAL_MODULES.EXTENDING_COLLECTION]
-      };
-
-      await processTokenBatch(extCollection.collection_id, [tokenToCreate]);
     }
 
     console.log(`  Sync finished for collection ${extCollection.collection_id}. Created: ${createdCount}, Published: ${publishedCount}, Processed: ${processedCount}`);

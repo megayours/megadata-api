@@ -4,8 +4,6 @@ import type { JsonRpcProvider } from 'ethers';
 
 export class MetadataFetcherService {
   static async fetchMetadata(tokenUri: string): Promise<Record<string, unknown>> {
-    
-
     // Handle base64-encoded data URI
     const base64Prefix = 'data:application/json;base64,';
     if (tokenUri.startsWith(base64Prefix)) {
