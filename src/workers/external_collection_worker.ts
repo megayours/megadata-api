@@ -118,6 +118,10 @@ export async function syncExternalCollection(extCollection: ExternalCollection &
         }
 
         const metadata = await MetadataFetcherService.fetchMetadata(tokenUri);
+        if (Object.keys(metadata).length === 0) {
+          console.log(`  Token ${tokenId} has empty metadata, skipping.`);
+          break;
+        }
 
         const tokenToCreate: NewMegadataToken = {
           id: tokenId,
