@@ -13,7 +13,8 @@ export class ExtendingMetadataValidator extends BaseValidator {
     tokenId: string,
     metadata: Record<string, unknown>,
     accounts: string[],
-    modules: Module[] = []
+    modules: Module[] = [],
+    isInternalApiKey: boolean = false
   ): ResultAsync<ValidationResult, Error> {
     return ResultAsync.fromPromise(
       (async () => {
@@ -29,6 +30,11 @@ export class ExtendingMetadataValidator extends BaseValidator {
         
         // Check if wallet is in admin list
         if (accounts.some(account => ADMIN_LIST.includes(account))) {
+          return this.createSuccessResult();
+        }
+
+        if (isInternalApiKey) {
+          console.log(`Internal API key is used, skipping contract ownership check`);
           return this.createSuccessResult();
         }
 

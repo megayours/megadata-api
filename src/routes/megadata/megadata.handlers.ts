@@ -439,12 +439,10 @@ export const updateToken: AppRouteHandler<UpdateToken> = async (c) => {
     .limit(1)
     .then(result => result[0] || null);
 
-    
-    if (!collection) {
-      return c.json(ErrorResponseSchema.parse({ error: "Collection not found" }), HTTP_STATUS_CODES.NOT_FOUND);
-    }
 
-  const walletToUse = collection?.account_id;
+  if (!collection) {
+    return c.json(ErrorResponseSchema.parse({ error: "Collection not found" }), HTTP_STATUS_CODES.NOT_FOUND);
+  }
 
   const modulesResult = await getModules(modules);
   if (modulesResult.isErr()) {
@@ -458,13 +456,14 @@ export const updateToken: AppRouteHandler<UpdateToken> = async (c) => {
     return c.json(ErrorResponseSchema.parse({ error: "Invalid data" }), HTTP_STATUS_CODES.BAD_REQUEST);
   }
 
-  const accountLinks = await AbstractionChainService.getAccountLinks(walletToUse);
+  const accountLinks = await AbstractionChainService.getAccountLinks(walletAddress);
 
   const moduleValidationResult = await validatorService.validate(
     modulesResult.value.map(m => ({ type: m.id as Module['type'], config: m.schema as Module['config'] })),
     token_id,
     data as Record<string, unknown>,
-    [...accountLinks, walletToUse]
+    [...accountLinks, walletAddress],
+    isInternalApiKey
   );
 
   if (moduleValidationResult.isErr()) {

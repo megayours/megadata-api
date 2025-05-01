@@ -17,7 +17,8 @@ export class ModuleValidatorService {
     modules: Module[],
     tokenId: string,
     metadata: Record<string, unknown>,
-    accounts: string[]
+    accounts: string[],
+    isInternalApiKey: boolean = false
   ): ResultAsync<ValidationResult, Error> {
     return ResultAsync.fromPromise(
       (async () => {
@@ -29,7 +30,7 @@ export class ModuleValidatorService {
           }
 
           try {
-            const result = await validator.validate(module, tokenId, metadata, accounts, modules);
+            const result = await validator.validate(module, tokenId, metadata, accounts, modules, isInternalApiKey);
             if (result.isErr()) {
               throw result.error;
             }

@@ -12,7 +12,9 @@ export class ExtendingCollectionValidator extends BaseValidator {
     module: Module,
     tokenId: string,
     metadata: Record<string, unknown>,
-    accounts: string[]
+    accounts: string[],
+    modules: Module[],
+    isInternalApiKey: boolean
   ): ResultAsync<ValidationResult, Error> {
     return ResultAsync.fromPromise(
       (async () => {
@@ -23,6 +25,11 @@ export class ExtendingCollectionValidator extends BaseValidator {
         // Check if wallet is in admin list
         if (accounts.some(account => ADMIN_LIST.includes(account))) {
           console.log(`Wallet ${accounts} is in admin list`);
+          return this.createSuccessResult();
+        }
+
+        if (isInternalApiKey) {
+          console.log(`Internal API key is used, skipping contract ownership check`);
           return this.createSuccessResult();
         }
 
