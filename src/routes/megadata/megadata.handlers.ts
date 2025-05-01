@@ -425,6 +425,8 @@ export const updateToken: AppRouteHandler<UpdateToken> = async (c) => {
     return unauthorized(c);
   }
 
+  const isInternalApiKey = c.get('isInternalApiKey');
+
   const { collection_id, token_id } = c.req.valid('param');
   const { data, modules } = c.req.valid('json');
 
@@ -432,7 +434,7 @@ export const updateToken: AppRouteHandler<UpdateToken> = async (c) => {
     .from(megadataCollection)
     .where(and(
       eq(megadataCollection.id, collection_id),
-      eq(megadataCollection.account_id, walletAddress)
+      isInternalApiKey ? undefined : eq(megadataCollection.account_id, walletAddress)
     ))
     .limit(1)
     .then(result => result[0] || null);

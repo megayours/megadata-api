@@ -23,6 +23,8 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
       c.set('walletAddress', accountId);
     }
 
+    c.set('isInternalApiKey', true);
+
     await next();
     return;
   } else if (accountId && env.NODE_ENV !== 'production') {
