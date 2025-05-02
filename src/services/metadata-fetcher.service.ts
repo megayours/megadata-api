@@ -14,14 +14,12 @@ export class MetadataFetcherService {
     }
 
     const metadataUrl = `${process.env.NEXT_PUBLIC_MEGADATA_API_URI}/ext/${tokenUri}`;
-    console.log(`[MetadataFetcherService] Fetching metadata from ${metadataUrl}`);
     const response = await fetch(metadataUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch metadata: ${response.statusText}`);
     }
 
     const metadata = (await response.json()) as Record<string, unknown>;
-    console.log(`[MetadataFetcherService] Fetched metadata: `, metadata);
     return { ...metadata, uri: tokenUri };
   }
 }

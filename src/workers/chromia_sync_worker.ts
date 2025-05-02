@@ -32,7 +32,7 @@ cron.schedule(CRON_SCHEDULE, async () => {
 console.log("Chromia sync worker scheduled.");
 
 async function runWorker() {
-  console.log("Running worker...");
+  console.log("Running Chroimia Sync Worker...");
 
   // 1. Fetch all pending tokens with their modules and module schemas in a single query
   const tokensWithModules = await db
@@ -50,6 +50,8 @@ async function runWorker() {
     .leftJoin(megadataCollection, eq(megadataToken.collection_id, megadataCollection.id))
     .where(and(eq(megadataToken.sync_status, 'pending'), eq(megadataCollection.is_published, true)))
     .orderBy(megadataToken.updated_at);
+
+  console.log(`Found ${tokensWithModules.length} pending tokens to sync.`);
 
   // 2. Group tokens by collection_id, and for each token aggregate all its modules
   type TokenGroup = {

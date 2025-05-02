@@ -212,22 +212,12 @@ export class MegadataService {
           })));
       }
 
-      if (token.is_published) {
-        const modulesWithSchema = await db.query.module.findMany({
-          where: inArray(module.id, modules ?? []),
-          columns: {
-            id: true,
-            schema: true
-          }
-        });
-        await AbstractionChainService.updateItems(collectionId, [{ id: tokenId, data: formatData(data, modulesWithSchema) }]);
-      }
-
       // Update the token data
       const [updatedToken] = await tx.update(megadataToken)
         .set({
           data: data,
-          updated_at: Math.floor(Date.now() / 1000)
+          updated_at: Math.floor(Date.now() / 1000),
+          sync_status: 'pending'
         })
         .where(and(
           eq(megadataToken.id, tokenId),

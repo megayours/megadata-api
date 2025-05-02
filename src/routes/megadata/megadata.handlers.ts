@@ -474,7 +474,9 @@ export const updateToken: AppRouteHandler<UpdateToken> = async (c) => {
     return c.json(ErrorResponseSchema.parse({ error: moduleValidationResult.value.error }), HTTP_STATUS_CODES.FORBIDDEN);
   }
 
-  const token = await MegadataService.updateToken(collection_id, token_id, validationResult.value, modules);
+  const updatedData = validationResult.value;
+
+  const token = await MegadataService.updateToken(collection_id, token_id, updatedData, modules);
 
   if (!token) {
     throw new HTTPException(HTTP_STATUS_CODES.NOT_FOUND, { message: "Token not found" });

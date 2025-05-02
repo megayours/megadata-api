@@ -1,4 +1,4 @@
-import { pgTable, text, integer, jsonb, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, jsonb, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 
@@ -49,6 +49,8 @@ export const megadataToken = pgTable("megadata_token", {
   updated_at: integer("updated_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
 }, (table) => [
   uniqueIndex("unique_token_id_collection_id").on(table.id, table.collection_id),
+  index("index_sync_status").on(table.sync_status),
+  index("index_collection_id").on(table.collection_id),
 ]);
 
 export const module = pgTable("module", {
@@ -72,6 +74,7 @@ export const tokenModule = pgTable("token_module", {
   updated_at: integer("updated_at").notNull().default(sql`EXTRACT(EPOCH FROM NOW())::integer`),
 }, (table) => [
   uniqueIndex("unique_token_module").on(table.token_row_id, table.module_id),
+  index("index_token_row_id").on(table.token_row_id),
 ]);
 
 export const externalCollection = pgTable("external_collection", {

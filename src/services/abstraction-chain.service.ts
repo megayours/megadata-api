@@ -15,7 +15,7 @@ export class AbstractionChainService {
   static async getPublishedItem(collectionId: number, itemId: string): Promise<Record<string, any>> {
     const client = await this.createClient();
 
-    return client.query<{ item: Record<string, any> }>("megadata.get_item", {
+    return client.query<{ collection: string, token_id: string, properties: Record<string, any> }>("megadata.get_item", {
       collection: collectionId.toString(),
       token_id: itemId
     });

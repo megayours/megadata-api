@@ -165,7 +165,6 @@ async function processTokenBatch(collectionId: number, tokens: NewMegadataToken[
   if (createdCount === 0) {
     return ok({ created: 0, published: 0 }); // Nothing was created
   }
-  console.log(`    Successfully created ${createdCount} tokens in DB.`);
 
   // 2. Publish Tokens
   const modulesResult = await ResultAsync.fromPromise<Module[], Error>(
@@ -195,7 +194,6 @@ async function processTokenBatch(collectionId: number, tokens: NewMegadataToken[
     return ok({ created: createdCount, published: 0 }); // Treat as not published for safety
   } else {
     publishedCount = createdBatch.length;
-    console.log(`    Successfully published ${publishedCount} tokens.`);
     return ok({ created: createdCount, published: publishedCount });
   }
 }
