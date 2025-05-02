@@ -4,6 +4,7 @@ import { megadataToken, tokenModule, module as moduleTable, megadataCollection }
 import cron from 'node-cron';
 import { AbstractionChainService } from '@/services/abstraction-chain.service';
 import { formatData } from '@/utils/data-formatter';
+import { sleep } from '@/lib/util';
 
 const CRON_SCHEDULE = '*/1 * * * *'; // Check once per minute
 const BATCH_SIZE = 10;
@@ -146,6 +147,7 @@ async function syncTokens(
 
   for (const token of tokenIds) {
     const publishedItem = AbstractionChainService.getPublishedItem(collectionId, token.id);
+    sleep(1000);
     tokenPublishesPromises.push(publishedItem);
   }
 
