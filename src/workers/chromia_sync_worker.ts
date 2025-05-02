@@ -54,6 +54,8 @@ async function runWorker() {
     return;
   }
 
+  console.log(`Received ${tokens.length} pending tokens to sync.`);
+
   // Group tokens by collection_id
   const groupedByCollection = new Map<number, typeof tokens>();
   for (const token of tokens) {
