@@ -147,7 +147,7 @@ async function syncTokens(
 
   for (const token of tokenIds) {
     const publishedItem = AbstractionChainService.getPublishedItem(collectionId, token.id);
-    sleep(1000);
+    sleep(2000);
     tokenPublishesPromises.push(publishedItem);
   }
 
