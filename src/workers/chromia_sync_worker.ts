@@ -143,15 +143,14 @@ async function syncTokens(
   const tokensToCreate = [];
   const tokensToUpdate = [];
 
-  const tokenPublishesPromises = [];
+  const publishedItems = [];
 
   for (const token of tokenIds) {
-    const publishedItem = AbstractionChainService.getPublishedItem(collectionId, token.id);
-    sleep(2000);
-    tokenPublishesPromises.push(publishedItem);
+    const publishedItem = await AbstractionChainService.getPublishedItem(collectionId, token.id);
+    await sleep(1000);
+    publishedItems.push(publishedItem);
   }
 
-  const publishedItems = await Promise.all(tokenPublishesPromises);
   const publishedIds = new Set(publishedItems.filter(item => item !== null).map(item => item.token_id));
 
   for (const token of tokenIds) {
