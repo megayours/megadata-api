@@ -54,73 +54,97 @@ async function runWorker() {
 
   console.log(`Received ${tokens.length} pending tokens to sync.`);
 
-  // Group tokens by collection_id
-  const groupedByCollection = new Map<number, typeof tokens>();
-  for (const token of tokens) {
-    if (!token.collection_id) continue;
-    if (!groupedByCollection.has(token.collection_id)) {
-      groupedByCollection.set(token.collection_id, []);
-    }
-    groupedByCollection.get(token.collection_id)!.push(token);
+  // Split tokens into batches
+  const tokenBatches = [];
+  for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+    tokenBatches.push(tokens.slice(i, i + BATCH_SIZE));
   }
+  console.log(`Split tokens into ${tokenBatches.length} batches of ${BATCH_SIZE}`);
 
-  // Process each collection's tokens
-  for (const [collectionId, collectionTokens] of groupedByCollection.entries()) {
-    // Fetch modules for these tokens
-    const tokenModules = await db
-      .select({
-        token_row_id: tokenModule.token_row_id,
-        module_id: tokenModule.module_id,
-        module_schema: moduleTable.schema,
-      })
-      .from(tokenModule)
-      .leftJoin(moduleTable, eq(tokenModule.module_id, moduleTable.id))
-      .where(inArray(tokenModule.token_row_id, collectionTokens.map(t => t.row_id)));
+  // Process each batch sequentially
+  for (const batchTokens of tokenBatches) {
+    console.log(`Processing batch of ${batchTokens.length} tokens...`);
 
-    // Group modules by token
-    const tokenModulesMap = new Map<number, { id: string; schema: any }[]>();
-    for (const tm of tokenModules) {
-      if (!tokenModulesMap.has(tm.token_row_id)) {
-        tokenModulesMap.set(tm.token_row_id, []);
+    // Group tokens by collection_id
+    const groupedByCollection = new Map<number, typeof batchTokens>();
+    for (const token of batchTokens) {
+      if (!token.collection_id) continue;
+      if (!groupedByCollection.has(token.collection_id)) {
+        groupedByCollection.set(token.collection_id, []);
       }
-      if (tm.module_schema && typeof tm.module_id === 'string') {
-        tokenModulesMap.get(tm.token_row_id)!.push({ id: tm.module_id, schema: tm.module_schema });
-      }
+      groupedByCollection.get(token.collection_id)!.push(token);
     }
 
-    // Prepare tokens with their modules
-    const tokensWithModules = collectionTokens.map(token => ({
-      id: token.id,
-      data: token.data as Record<string, any>,
-      modules: tokenModulesMap.get(token.row_id) || []
-    }));
+    // Process each collection's tokens
+    for (const [collectionId, collectionTokens] of groupedByCollection.entries()) {
+      console.log(`Processing collection ${collectionId} with ${collectionTokens.length} tokens...`);
 
-    // Collect unique modules for this batch
-    const batchModules: { id: string; schema: any }[] = [];
-    const seenModuleIds = new Set<string>();
-    for (const token of tokensWithModules) {
-      for (const mod of token.modules) {
-        if (!seenModuleIds.has(mod.id)) {
-          seenModuleIds.add(mod.id);
-          batchModules.push(mod);
+      // Fetch modules for these tokens
+      const tokenModules = await db
+        .select({
+          token_row_id: tokenModule.token_row_id,
+          module_id: tokenModule.module_id,
+          module_schema: moduleTable.schema,
+        })
+        .from(tokenModule)
+        .leftJoin(moduleTable, eq(tokenModule.module_id, moduleTable.id))
+        .where(inArray(tokenModule.token_row_id, collectionTokens.map(t => t.row_id)));
+
+      // Group modules by token
+      const tokenModulesMap = new Map<number, { id: string; schema: any }[]>();
+      for (const tm of tokenModules) {
+        if (!tokenModulesMap.has(tm.token_row_id)) {
+          tokenModulesMap.set(tm.token_row_id, []);
+        }
+        if (tm.module_schema && typeof tm.module_id === 'string') {
+          tokenModulesMap.get(tm.token_row_id)!.push({ id: tm.module_id, schema: tm.module_schema });
         }
       }
+
+      // Prepare tokens with their modules
+      const tokensWithModules = collectionTokens.map(token => ({
+        id: token.id,
+        data: token.data as Record<string, any>,
+        modules: tokenModulesMap.get(token.row_id) || []
+      }));
+
+      // Collect unique modules for this batch
+      const batchModules: { id: string; schema: any }[] = [];
+      const seenModuleIds = new Set<string>();
+      for (const token of tokensWithModules) {
+        for (const mod of token.modules) {
+          if (!seenModuleIds.has(mod.id)) {
+            seenModuleIds.add(mod.id);
+            batchModules.push(mod);
+          }
+        }
+      }
+
+      try {
+        // Sync tokens
+        await syncTokens(
+          collectionId,
+          tokensWithModules.map(t => ({ id: t.id, data: t.data })),
+          batchModules
+        );
+
+        // Update sync status
+        await db.update(megadataToken)
+          .set({ sync_status: 'done', is_published: true })
+          .where(and(
+            eq(megadataToken.collection_id, collectionId),
+            inArray(megadataToken.id, tokensWithModules.map(t => t.id))
+          ));
+
+        console.log(`Successfully processed collection ${collectionId}`);
+      } catch (error) {
+        console.error(`Error processing collection ${collectionId}:`, error);
+        // Continue with next collection even if this one failed
+        continue;
+      }
     }
 
-    // Sync tokens
-    await syncTokens(
-      collectionId,
-      tokensWithModules.map(t => ({ id: t.id, data: t.data })),
-      batchModules
-    );
-
-    // Update sync status
-    await db.update(megadataToken)
-      .set({ sync_status: 'done', is_published: true })
-      .where(and(
-        eq(megadataToken.collection_id, collectionId),
-        inArray(megadataToken.id, tokensWithModules.map(t => t.id))
-      ));
+    console.log(`Finished processing batch of ${batchTokens.length} tokens`);
   }
 }
 
@@ -136,7 +160,7 @@ async function syncTokens(
 
   for (const token of tokenIds) {
     const publishedItem = await AbstractionChainService.getPublishedItem(collectionId, token.id);
-    await sleep(1000);
+    await sleep(100);
     publishedItems.push(publishedItem);
   }
 
