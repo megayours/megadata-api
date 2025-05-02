@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { megadataToken, tokenModule, module as moduleTable, megadataCollection } from '@/db/schema';
 import cron from 'node-cron';
@@ -34,70 +34,80 @@ console.log("Chromia sync worker scheduled.");
 async function runWorker() {
   console.log("Running Chroimia Sync Worker...");
 
-  // 1. Fetch all pending tokens with their modules and module schemas in a single query
-  const tokensWithModules = await db
-    .select({
-      row_id: megadataToken.row_id,
-      id: megadataToken.id,
-      collection_id: megadataToken.collection_id,
-      data: megadataToken.data,
-      module_id: tokenModule.module_id,
-      module_schema: moduleTable.schema,
-    })
+  // 1. First, get the total count of pending tokens
+  const totalCount = await db
+    .select({ count: sql<number>`count(*)` })
     .from(megadataToken)
-    .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
-    .leftJoin(moduleTable, eq(tokenModule.module_id, moduleTable.id))
     .leftJoin(megadataCollection, eq(megadataToken.collection_id, megadataCollection.id))
     .where(and(eq(megadataToken.sync_status, 'pending'), eq(megadataCollection.is_published, true)))
-    .orderBy(megadataToken.updated_at);
+    .then(result => result[0]?.count || 0);
 
-  console.log(`Found ${tokensWithModules.length} pending tokens to sync.`);
+  console.log(`Found ${totalCount} total pending tokens to sync.`);
 
-  // 2. Group tokens by collection_id, and for each token aggregate all its modules
-  type TokenGroup = {
-    row_id: number;
-    id: string;
-    data: Record<string, any>;
-    modules: { id: string; schema: any }[];
-  };
-  // Map: collection_id -> Map<token_id, TokenGroup>
-  const grouped: Map<number, Map<string, TokenGroup>> = new Map();
-  for (const row of tokensWithModules) {
-    if (!row) continue;
-    if (!row.collection_id || row.id === undefined) continue;
-    if (!grouped.has(row.collection_id)) {
-      grouped.set(row.collection_id, new Map());
-    }
-    const tokenMap = grouped.get(row.collection_id)!;
-    if (!tokenMap.has(row.id)) {
-      tokenMap.set(row.id, {
-        row_id: row.row_id,
-        id: row.id,
-        data: row.data as Record<string, any>,
-        modules: [],
-      });
-    }
-    const tokenGroup = tokenMap.get(row.id)!;
-    if (row.module_schema && typeof row.module_id === 'string') {
-      // Only add if not already present
-      if (!tokenGroup.modules.some(m => m.id === row.module_id)) {
-        tokenGroup.modules.push({ id: row.module_id, schema: row.module_schema });
+  // 2. Process tokens in batches
+  for (let offset = 0; offset < totalCount; offset += BATCH_SIZE) {
+    // Fetch a batch of pending tokens
+    const tokens = await db
+      .select({
+        row_id: megadataToken.row_id,
+        id: megadataToken.id,
+        collection_id: megadataToken.collection_id,
+        data: megadataToken.data,
+      })
+      .from(megadataToken)
+      .leftJoin(megadataCollection, eq(megadataToken.collection_id, megadataCollection.id))
+      .where(and(eq(megadataToken.sync_status, 'pending'), eq(megadataCollection.is_published, true)))
+      .orderBy(megadataToken.updated_at)
+      .limit(BATCH_SIZE)
+      .offset(offset);
+
+    if (tokens.length === 0) break;
+
+    // Group tokens by collection_id
+    const groupedByCollection = new Map<number, typeof tokens>();
+    for (const token of tokens) {
+      if (!token.collection_id) continue;
+      if (!groupedByCollection.has(token.collection_id)) {
+        groupedByCollection.set(token.collection_id, []);
       }
+      groupedByCollection.get(token.collection_id)!.push(token);
     }
-  }
 
-  // 3. Iterate per group and call syncTokens
-  for (const [collectionIdStr, tokenMap] of grouped.entries()) {
-    const allTokens = Array.from(tokenMap.values());
-    if (!allTokens || allTokens.length === 0) continue;
-    const collectionId = Number(collectionIdStr);
-    // Chunk tokens into batches
-    for (let i = 0; i < allTokens.length; i += BATCH_SIZE) {
-      const tokens = allTokens.slice(i, i + BATCH_SIZE);
-      // Collect all unique modules for this batch
+    // Process each collection's tokens
+    for (const [collectionId, collectionTokens] of groupedByCollection.entries()) {
+      // Fetch modules for these tokens
+      const tokenModules = await db
+        .select({
+          token_row_id: tokenModule.token_row_id,
+          module_id: tokenModule.module_id,
+          module_schema: moduleTable.schema,
+        })
+        .from(tokenModule)
+        .leftJoin(moduleTable, eq(tokenModule.module_id, moduleTable.id))
+        .where(inArray(tokenModule.token_row_id, collectionTokens.map(t => t.row_id)));
+
+      // Group modules by token
+      const tokenModulesMap = new Map<number, { id: string; schema: any }[]>();
+      for (const tm of tokenModules) {
+        if (!tokenModulesMap.has(tm.token_row_id)) {
+          tokenModulesMap.set(tm.token_row_id, []);
+        }
+        if (tm.module_schema && typeof tm.module_id === 'string') {
+          tokenModulesMap.get(tm.token_row_id)!.push({ id: tm.module_id, schema: tm.module_schema });
+        }
+      }
+
+      // Prepare tokens with their modules
+      const tokensWithModules = collectionTokens.map(token => ({
+        id: token.id,
+        data: token.data as Record<string, any>,
+        modules: tokenModulesMap.get(token.row_id) || []
+      }));
+
+      // Collect unique modules for this batch
       const batchModules: { id: string; schema: any }[] = [];
       const seenModuleIds = new Set<string>();
-      for (const token of tokens) {
+      for (const token of tokensWithModules) {
         for (const mod of token.modules) {
           if (!seenModuleIds.has(mod.id)) {
             seenModuleIds.add(mod.id);
@@ -105,16 +115,21 @@ async function runWorker() {
           }
         }
       }
+
+      // Sync tokens
       await syncTokens(
         collectionId,
-        tokens.map((t: TokenGroup) => ({ id: t.id, data: t.data })),
+        tokensWithModules.map(t => ({ id: t.id, data: t.data })),
         batchModules
       );
 
-      // 4. Update sync_status to 'done' for these tokens
+      // Update sync status
       await db.update(megadataToken)
         .set({ sync_status: 'done', is_published: true })
-        .where(and(eq(megadataToken.collection_id, collectionId), inArray(megadataToken.id, tokens.map((t: TokenGroup) => t.id))));
+        .where(and(
+          eq(megadataToken.collection_id, collectionId),
+          inArray(megadataToken.id, tokensWithModules.map(t => t.id))
+        ));
     }
   }
 }
