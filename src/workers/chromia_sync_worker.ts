@@ -44,9 +44,7 @@ async function runWorker() {
       data: megadataToken.data,
     })
     .from(megadataToken)
-    .leftJoin(megadataCollection, eq(megadataToken.collection_id, megadataCollection.id))
-    .where(and(eq(megadataToken.sync_status, 'pending'), eq(megadataCollection.is_published, true)))
-    .orderBy(megadataToken.updated_at)
+    .where(and(eq(megadataToken.sync_status, 'pending')))
     .limit(100);
 
   if (tokens.length === 0) {
