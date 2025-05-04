@@ -52,6 +52,7 @@ export const megadataToken = pgTable("megadata_token", {
   index("index_sync_status").on(table.sync_status),
   index("index_collection_id").on(table.collection_id),
   index("index_updated_at").on(table.updated_at),
+  index("index_data_gin").on(sql`${table.data} gin_trgm_ops`),
 ]);
 
 export const module = pgTable("module", {

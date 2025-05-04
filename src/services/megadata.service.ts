@@ -345,15 +345,26 @@ export class MegadataService {
         data: megadataToken.data,
         modules: sql<string[] | null>`array_agg(${tokenModule.module_id})`.as('modules')
       })
-        .from(megadataToken)
-        .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
-        .where(and(
-          sql`${megadataToken.data} ? ${attribute}`,
-          sql`${megadataToken.data} ->> ${attribute} IS NOT NULL`,
-          sql`${megadataToken.data} ->> ${attribute} != ''`
-        ))
-        .groupBy(megadataToken.row_id)
-        .orderBy(sql`RANDOM()`)
+        .from(
+          db.select({
+            row_id: megadataToken.row_id,
+            collection_id: megadataToken.collection_id,
+            id: megadataToken.id,
+            data: megadataToken.data,
+            // Use hash of row_id for pseudo-random ordering
+            random_value: sql<number>`('x' || substr(md5(${megadataToken.row_id}::text), 1, 8))::bit(32)::int`.as('random_value')
+          })
+            .from(megadataToken)
+            .where(and(
+              sql`${megadataToken.data} ? ${attribute}`,
+              sql`${megadataToken.data} ->> ${attribute} IS NOT NULL`,
+              sql`${megadataToken.data} ->> ${attribute} != ''`
+            ))
+            .as('filtered_tokens')
+        )
+        .leftJoin(tokenModule, eq(sql`filtered_tokens.row_id`, tokenModule.token_row_id))
+        .groupBy(sql`filtered_tokens.row_id`, sql`filtered_tokens.collection_id`, sql`filtered_tokens.id`, sql`filtered_tokens.data`)
+        .orderBy(sql`filtered_tokens.random_value`)
         .limit(count)
         .then(results => results.map(({ collection_id, id, data, modules }) => ({
           collection_id,

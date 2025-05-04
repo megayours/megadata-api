@@ -1,0 +1,1 @@
+CREATE INDEX "index_data_gin" ON "megadata_token" USING btree ("data" gin_trgm_ops);
