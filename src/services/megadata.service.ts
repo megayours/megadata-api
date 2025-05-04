@@ -355,23 +355,29 @@ export class MegadataService {
             random_value: sql<number>`('x' || substr(md5(${megadataToken.row_id}::text), 1, 8))::bit(32)::int`.as('random_value')
           })
             .from(megadataToken)
-            .where(and(
-              sql`${megadataToken.data} ? ${attribute}`,
-              sql`${megadataToken.data} ->> ${attribute} IS NOT NULL`,
-              sql`${megadataToken.data} ->> ${attribute} != ''`
-            ))
             .as('filtered_tokens')
         )
         .leftJoin(tokenModule, eq(sql`filtered_tokens.row_id`, tokenModule.token_row_id))
         .groupBy(sql`filtered_tokens.row_id`, sql`filtered_tokens.collection_id`, sql`filtered_tokens.id`, sql`filtered_tokens.data`)
         .orderBy(sql`filtered_tokens.random_value`)
-        .limit(count)
-        .then(results => results.map(({ collection_id, id, data, modules }) => ({
-          collection_id,
-          id,
-          data,
-          modules: (modules ?? []).filter(Boolean)
-        }))),
+        .limit(count + 100) // Fetch extra tokens to ensure we have enough after filtering
+        .then(results => {
+          // Filter tokens with images in memory
+          const tokensWithImages = results
+            .map(({ collection_id, id, data, modules }) => ({
+              collection_id,
+              id,
+              data,
+              modules: (modules ?? []).filter(Boolean)
+            }))
+            .filter(token => {
+              const data = token.data as { image?: string };
+              return data?.image != null && data.image !== '';
+            });
+
+          // Return only the requested count
+          return tokensWithImages.slice(0, count);
+        }),
       (error) => handleDatabaseError(error)
     );
   }
