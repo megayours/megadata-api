@@ -347,6 +347,7 @@ export class MegadataService {
       })
         .from(megadataToken)
         .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
+        .groupBy(megadataToken.collection_id, megadataToken.id, megadataToken.data)
         .limit(count + 100) // Fetch extra tokens to ensure we have enough after filtering
         .then(results => {
           // Filter tokens with images in memory
