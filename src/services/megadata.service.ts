@@ -338,6 +338,9 @@ export class MegadataService {
    * @returns ResultAsync<{ collection_id: number, id: string, data: any, modules: string[] }[], ApiError>
    */
   static async getRandomTokensByAttribute(attribute: string, count: number): Promise<ResultAsync<{ collection_id: number, id: string, data: any, modules: string[] }[], ApiError>> {
+    // Generate random number between 0-9
+    const randomDigit = Math.floor(Math.random() * 10);
+    
     return ResultAsync.fromPromise(
       db.select({
         collection_id: megadataToken.collection_id,
@@ -347,24 +350,17 @@ export class MegadataService {
       })
         .from(megadataToken)
         .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
+        .where(sql`CAST(${megadataToken.updated_at} AS TEXT) LIKE '%${randomDigit}'`)
         .groupBy(megadataToken.collection_id, megadataToken.id, megadataToken.data)
-        .limit(count + 100) // Fetch extra tokens to ensure we have enough after filtering
+        .limit(count)
         .then(results => {
-          // Filter tokens with images in memory
-          const tokensWithImages = results
+          return results
             .map(({ collection_id, id, data, modules }) => ({
               collection_id,
               id,
               data,
               modules: (modules ?? []).filter(Boolean)
-            }))
-            .filter(token => {
-              const data = token.data as { image?: string };
-              return data?.image != null && data.image !== '';
-            });
-
-          // Return only the requested count
-          return tokensWithImages.slice(0, count);
+            }));
         }),
       (error) => handleDatabaseError(error)
     );
