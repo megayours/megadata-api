@@ -347,9 +347,6 @@ export class MegadataService {
       })
         .from(megadataToken)
         .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
-        .where(sql`('x' || substr(md5(${megadataToken.row_id}::text), 1, 8))::bit(32)::int < ${Math.floor(Math.random() * 2147483647)}`)
-        .groupBy(megadataToken.row_id, megadataToken.collection_id, megadataToken.id, megadataToken.data)
-        .orderBy(sql`('x' || substr(md5(${megadataToken.row_id}::text), 1, 8))::bit(32)::int`)
         .limit(count + 100) // Fetch extra tokens to ensure we have enough after filtering
         .then(results => {
           // Filter tokens with images in memory
