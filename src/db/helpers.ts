@@ -9,6 +9,7 @@ export async function accountExists(accountId: string): Promise<boolean> {
 }
 
 export const handleDatabaseError = (error: unknown): ApiError => {
+  console.error(error);
   if (error instanceof ApiError) {
     return {
       message: error.message,
