@@ -345,21 +345,11 @@ export class MegadataService {
         data: megadataToken.data,
         modules: sql<string[] | null>`array_agg(${tokenModule.module_id})`.as('modules')
       })
-        .from(
-          db.select({
-            row_id: megadataToken.row_id,
-            collection_id: megadataToken.collection_id,
-            id: megadataToken.id,
-            data: megadataToken.data,
-            // Use hash of row_id for pseudo-random ordering
-            random_value: sql<number>`('x' || substr(md5(${megadataToken.row_id}::text), 1, 8))::bit(32)::int`.as('random_value')
-          })
-            .from(megadataToken)
-            .as('filtered_tokens')
-        )
-        .leftJoin(tokenModule, eq(sql`filtered_tokens.row_id`, tokenModule.token_row_id))
-        .groupBy(sql`filtered_tokens.row_id`, sql`filtered_tokens.collection_id`, sql`filtered_tokens.id`, sql`filtered_tokens.data`)
-        .orderBy(sql`filtered_tokens.random_value`)
+        .from(megadataToken)
+        .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
+        .where(sql`('x' || substr(md5(${megadataToken.row_id}::text), 1, 8))::bit(32)::int < ${Math.floor(Math.random() * 2147483647)}`)
+        .groupBy(megadataToken.row_id, megadataToken.collection_id, megadataToken.id, megadataToken.data)
+        .orderBy(sql`('x' || substr(md5(${megadataToken.row_id}::text), 1, 8))::bit(32)::int`)
         .limit(count + 100) // Fetch extra tokens to ensure we have enough after filtering
         .then(results => {
           // Filter tokens with images in memory
