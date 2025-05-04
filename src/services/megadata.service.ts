@@ -350,7 +350,7 @@ export class MegadataService {
       })
         .from(megadataToken)
         .leftJoin(tokenModule, eq(megadataToken.row_id, tokenModule.token_row_id))
-        .where(sql`CAST(${megadataToken.updated_at} AS TEXT) LIKE '%${randomDigit}'`)
+        .where(sql`${megadataToken.updated_at} % 10 = ${randomDigit}`)
         .groupBy(megadataToken.collection_id, megadataToken.id, megadataToken.data)
         .limit(count)
         .then(results => {
